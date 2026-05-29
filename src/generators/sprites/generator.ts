@@ -12,10 +12,10 @@
  * @module generators/sprites
  */
 
-import { spawn, type ChildProcess } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import { join, normalize } from 'node:path';
 import { FFmpegError } from '../../types/index.js';
+import { spawnFFmpeg, type SpawnFFmpegOptions, type FFmpegCommand } from '../../core/ffmpeg-spawn.js';
 import { formatWebVTTTime } from '../../utils/logger.js';
 import type { SpriteConfig, SpriteResult, VideoSource } from './types.js';
 import {
@@ -57,11 +57,18 @@ export async function generateSprites(
   const {
     interval = DEFAULT_SPRITE_INTERVAL,
     width = DEFAULT_SPRITE_WIDTH,
+    height: heightOverride,
+    aspectRatio,
     columns = DEFAULT_SPRITE_COLUMNS,
     format = 'jpg',
     quality = 85,
     ffmpegPath = 'ffmpeg',
     debug = false,
+    timeout,
+    onProgress,
+    signal,
+    dryRun,
+    onCommand,
   } = config;
 
   if (debug) {
@@ -75,7 +82,12 @@ export async function generateSprites(
 
   const thumbnailCount = Math.floor(source.duration / interval);
   const rows = Math.ceil(thumbnailCount / columns);
-  const thumbnailHeight = Math.round(width / SPRITE_ASPECT_RATIO);
+  // Cell height: explicit override → derived from aspectRatio → 16:9 default.
+  // Lets callers match a vertical (9:16) source so frames fill the cell instead
+  // of being letterboxed with black bars.
+  const thumbnailHeight = heightOverride
+    ? Math.round(heightOverride)
+    : Math.round(width / (aspectRatio ?? SPRITE_ASPECT_RATIO));
 
   if (debug) {
     console.log(`[Sprites]   Total thumbnails: ${thumbnailCount} (${columns}x${rows} grid)`);
@@ -93,7 +105,26 @@ export async function generateSprites(
       width,
       height: thumbnailHeight,
       ffmpegPath,
+      timeout,
+      signal,
+      dryRun,
+      onCommand,
+      onProgress: onProgress ? (p) => onProgress({ ...p, percentage: p.percentage * 0.8 }) : undefined,
+      duration: source.duration,
     });
+
+    // Dry-run: phase 2 reads phase-1 outputs which don't exist — return the plan.
+    if (dryRun) {
+      await fs.rm(thumbnailsDir, { recursive: true, force: true }).catch(() => {});
+      return {
+        imagePath: join(outputDir, `sprites.${format === 'png' ? 'png' : 'jpg'}`),
+        vttPath: join(outputDir, 'sprites.vtt'),
+        thumbnailCount,
+        grid: { columns, rows },
+        dimensions: { width: width * columns, height: thumbnailHeight * rows },
+        thumbnailSize: { width, height: thumbnailHeight },
+      };
+    }
 
     // Step 2: Combine into sprite sheet
     const extension = format === 'png' ? 'png' : 'jpg';
@@ -106,6 +137,9 @@ export async function generateSprites(
       thumbnailCount,
       ffmpegPath,
       quality,
+      timeout,
+      signal,
+      onCommand,
     });
 
     // Step 3: Generate WebVTT file with coordinates
@@ -160,10 +194,16 @@ interface ThumbnailExtractionOptions {
   width: number;
   height: number;
   ffmpegPath: string;
+  timeout?: number | undefined;
+  signal?: AbortSignal | undefined;
+  dryRun?: boolean | undefined;
+  onCommand?: ((cmd: FFmpegCommand) => void) | undefined;
+  onProgress?: ((p: { percentage: number; currentSec: number; totalSec: number }) => void) | undefined;
+  duration?: number | undefined;
 }
 
 async function extractThumbnails(options: ThumbnailExtractionOptions): Promise<void> {
-  const { inputPath, outputDir, interval, width, height, ffmpegPath } = options;
+  const { inputPath, outputDir, interval, width, height, ffmpegPath, timeout, signal, dryRun, onCommand, onProgress, duration } = options;
 
   const args = [
     '-i', normalize(inputPath),
@@ -172,7 +212,7 @@ async function extractThumbnails(options: ThumbnailExtractionOptions): Promise<v
     normalize(join(outputDir, 'thumb_%04d.jpg')),
   ];
 
-  await executeFFmpeg(ffmpegPath, args);
+  await executeFFmpeg(ffmpegPath, args, { timeout, signal, dryRun, onCommand, onProgress, duration });
 }
 
 interface SpriteSheetOptions {
@@ -183,10 +223,13 @@ interface SpriteSheetOptions {
   thumbnailCount: number;
   ffmpegPath: string;
   quality: number;
+  timeout?: number | undefined;
+  signal?: AbortSignal | undefined;
+  onCommand?: ((cmd: FFmpegCommand) => void) | undefined;
 }
 
 async function createSpriteSheet(options: SpriteSheetOptions): Promise<void> {
-  const { thumbnailsDir, outputPath, columns, rows, thumbnailCount, ffmpegPath, quality } = options;
+  const { thumbnailsDir, outputPath, columns, rows, thumbnailCount, ffmpegPath, quality, timeout, signal, onCommand } = options;
 
   const files = await fs.readdir(thumbnailsDir);
   const thumbnailFiles = files
@@ -212,7 +255,7 @@ async function createSpriteSheet(options: SpriteSheetOptions): Promise<void> {
     normalize(outputPath),
   ];
 
-  await executeFFmpeg(ffmpegPath, args);
+  await executeFFmpeg(ffmpegPath, args, { timeout, signal, onCommand });
 }
 
 interface WebVTTOptions {
@@ -250,25 +293,6 @@ async function generateWebVTT(options: WebVTTOptions): Promise<void> {
   await fs.writeFile(outputPath, vttContent, 'utf8');
 }
 
-function executeFFmpeg(ffmpegPath: string, args: string[]): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const proc: ChildProcess = spawn(ffmpegPath, args);
-    let stderr = '';
-
-    proc.stderr?.on('data', (data: Buffer) => {
-      stderr += data.toString();
-    });
-
-    proc.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new FFmpegError(`Sprite generation failed (exit ${code})`, stderr.slice(-500)));
-      }
-    });
-
-    proc.on('error', (err) => {
-      reject(new FFmpegError(`FFmpeg spawn error: ${err.message}`, err));
-    });
-  });
+function executeFFmpeg(ffmpegPath: string, args: string[], opts: SpawnFFmpegOptions = {}): Promise<void> {
+  return spawnFFmpeg(ffmpegPath, args, opts);
 }

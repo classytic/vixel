@@ -7,6 +7,7 @@
  */
 
 import ffmpeg from 'fluent-ffmpeg';
+import { FFmpegError, ErrorCode } from '../errors.js';
 
 // =============================================================================
 // Types
@@ -20,6 +21,8 @@ export interface VideoMetadata {
   fps: number;
   codec: string;
   audioCodec?: string;
+  /** Audio sample rate in Hz (when an audio stream is present). */
+  audioSampleRate?: number;
   hasAudio: boolean;
 }
 
@@ -42,10 +45,10 @@ export async function probeVideo(inputPath: string, ffprobePath = 'ffprobe'): Pr
     if (ffprobePath) cmd.setFfprobePath(ffprobePath);
 
     cmd.ffprobe((err, data) => {
-      if (err) return reject(new Error(`FFprobe failed: ${err.message}`));
+      if (err) return reject(new FFmpegError(`FFprobe failed: ${err.message}`, err, ErrorCode.PROBE_FAILED));
 
       const video = data.streams.find(s => s.codec_type === 'video');
-      if (!video) return reject(new Error('No video stream found'));
+      if (!video) return reject(new FFmpegError('No video stream found', { inputPath }, ErrorCode.PROBE_FAILED));
 
       const audio = data.streams.find(s => s.codec_type === 'audio');
 
@@ -65,6 +68,7 @@ export async function probeVideo(inputPath: string, ffprobePath = 'ffprobe'): Pr
         fps: parseFraction(video.r_frame_rate || '0'),
         codec: video.codec_name || 'unknown',
         ...(audio?.codec_name && { audioCodec: audio.codec_name }),
+        ...(audio?.sample_rate && { audioSampleRate: Number(audio.sample_rate) }),
         hasAudio: !!audio,
       });
     });

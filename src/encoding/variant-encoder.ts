@@ -13,11 +13,13 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import { join, normalize } from 'node:path';
-import type { QualityVariant, VariantInfo, ProgressCallback } from '../types/index.js';
+import type { QualityVariant, VariantInfo, ProgressCallback, HardwareAccel } from '../types/index.js';
 import { FFmpegError } from '../types/index.js';
 import { probeVideo, type VideoMetadata } from '../core/probe.js';
 import { variantToPreset, checkHLSCompatibility, type QualityPreset } from '../core/index.js';
 import { Logger } from '../utils/logger.js';
+import { detectHardwareAccel, getHardwareEncoder } from '../generators/compression/constants.js';
+import { mapWithConcurrency } from '../core/concurrency.js';
 import {
   DEFAULT_FFMPEG_TIMEOUT,
   FALLBACK_BANDWIDTH_BY_RESOLUTION,
@@ -35,6 +37,8 @@ export interface EncodeOptions {
   variants: QualityVariant[];
   onProgress?: ProgressCallback;
   segmentDuration?: number;
+  /** Max variants encoded simultaneously. Default: 2. Prevents OOM. */
+  concurrency?: number;
 }
 
 export interface EncodeResult {
@@ -67,6 +71,7 @@ export class VariantEncoder {
   private readonly ffprobePath: string;
   private readonly timeout: number;
   private readonly logger: Logger;
+  private hwAccel: HardwareAccel = 'none';
 
   constructor(config: { ffmpegPath: string; ffprobePath: string; timeout?: number; logger?: Logger }) {
     this.ffmpegPath = config.ffmpegPath;
@@ -75,8 +80,23 @@ export class VariantEncoder {
     this.logger = config.logger || new Logger({ debug: false });
   }
 
+  /** Probe for available hardware encoders and cache the best one. */
+  async detectHardwareAcceleration(): Promise<HardwareAccel> {
+    const available = await detectHardwareAccel(this.ffmpegPath);
+    // Priority: nvenc > qsv > vaapi > videotoolbox > none
+    for (const preferred of ['nvenc', 'qsv', 'vaapi', 'videotoolbox'] as HardwareAccel[]) {
+      if (available.includes(preferred)) {
+        this.hwAccel = preferred;
+        this.logger.info(`Hardware acceleration: ${preferred}`);
+        return preferred;
+      }
+    }
+    this.logger.info('Hardware acceleration: none (software encoding)');
+    return 'none';
+  }
+
   async encodeVariants(options: EncodeOptions): Promise<EncodeResult> {
-    const { inputPath, outputDir, variants, onProgress, segmentDuration = 4 } = options;
+    const { inputPath, outputDir, variants, onProgress, segmentDuration = 4, concurrency = 2 } = options;
 
     // Probe video
     const metadata = await probeVideo(inputPath, this.ffprobePath);
@@ -84,14 +104,22 @@ export class VariantEncoder {
 
     await fs.mkdir(outputDir, { recursive: true });
 
-    // Encode each variant
-    const results: Array<SingleVariantResult & { preset: QualityPreset; index: number }> = [];
+    // Encode variants with a concurrency cap (parallel, but bounded to avoid OOM).
+    // Per-variant progress is aggregated into an overall percentage.
+    const progressByIndex = new Array<number>(variants.length).fill(0);
+    const emitProgress = () => {
+      if (!onProgress) return;
+      const overall = progressByIndex.reduce((a, b) => a + b, 0) / variants.length;
+      onProgress({
+        percent: overall,
+        currentTime: (overall / 100) * metadata.duration,
+        targetDuration: metadata.duration,
+      });
+    };
 
-    for (let i = 0; i < variants.length; i++) {
-      const variant = variants[i]!;
+    const encoded = await mapWithConcurrency(variants, Math.max(1, concurrency), async (variant, i) => {
       const preset = variantToPreset(variant);
       const variantDir = join(outputDir, `v${i}`);
-
       await fs.mkdir(variantDir, { recursive: true });
       this.logger.info(`Encoding variant ${i + 1}/${variants.length}: ${variant.name}`);
 
@@ -103,16 +131,17 @@ export class VariantEncoder {
         segmentDuration: variant.segmentDuration ?? segmentDuration,
         metadata,
         onProgress: onProgress
-          ? (p) => onProgress({
-              percent: ((i + p.percentage / 100) / variants.length) * 100,
-              currentTime: p.current,
-              targetDuration: metadata.duration * variants.length,
-            })
+          ? (p) => {
+              progressByIndex[i] = p.percentage;
+              emitProgress();
+            }
           : null,
       });
 
-      results.push({ ...result, preset, index: i });
-    }
+      return { ...result, preset, index: i };
+    });
+
+    const results: Array<SingleVariantResult & { preset: QualityPreset; index: number }> = encoded;
 
     // Create master playlist
     const masterPath = join(outputDir, 'master.m3u8');
@@ -193,20 +222,31 @@ export class VariantEncoder {
     const playlistPath = join(outputDir, 'playlist.m3u8');
     const gopSize = Math.round(metadata.fps * GOP_DURATION_SECONDS);
 
+    // Use hardware encoder when available, fall back to libx264
+    const hwEncoder = this.hwAccel !== 'none'
+      ? getHardwareEncoder('libx264', this.hwAccel)
+      : null;
+    const videoCodec = hwEncoder ?? 'libx264';
+    const qualityArgs: string[] = hwEncoder
+      ? ['-qp', String(Math.round(parseInt(preset.videoBitrate) / 200))] // approximate CRF→QP
+      : ['-crf', '23'];
+
     const args = [
       '-i', normalize(inputPath), '-y',
+      // Parallel encoding threads (0 = auto-detect CPU count)
+      '-threads', '0',
       // Video
-      '-c:v', 'libx264',
+      '-c:v', videoCodec,
       '-b:v', preset.videoBitrate,
       '-maxrate', preset.maxrate,
       '-bufsize', preset.bufsize,
       '-vf', `scale=w=${preset.width}:h=${preset.height}:force_original_aspect_ratio=decrease,format=yuv420p,pad=ceil(iw/2)*2:ceil(ih/2)*2`,
-      '-profile:v', preset.profile,
-      '-level', preset.level,
+      ...(!hwEncoder ? ['-profile:v', preset.profile, '-level', preset.level] : []),
       '-g', String(gopSize),
       '-keyint_min', String(gopSize),
       '-sc_threshold', '0',
       '-preset', 'fast',
+      ...qualityArgs,
       '-avoid_negative_ts', 'make_zero',
       '-force_key_frames', `expr:eq(mod(floor(t),${segmentDuration}),0)`,
       // Audio

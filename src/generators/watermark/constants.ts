@@ -3,6 +3,7 @@
  */
 
 import type { WatermarkPosition } from './types.js';
+import { escapeDrawtext } from '../captions/constants.js';
 
 // =============================================================================
 // Defaults
@@ -54,8 +55,9 @@ export function buildTextOverlayFilter(
   fontColor: string,
   opacity: number
 ): string {
-  // Escape special characters
-  const escapedText = text.replace(/:/g, '\\:').replace(/'/g, "\\'");
+  // Escape all drawtext metacharacters (\, :, ', %) — reuse the canonical
+  // helper so watermark and caption escaping never drift.
+  const escapedText = escapeDrawtext(text);
 
   const posMap: Record<WatermarkPosition, string> = {
     'top-left': 'x=10:y=10',

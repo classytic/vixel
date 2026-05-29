@@ -1,6 +1,6 @@
 {
   "name": "@classytic/vixel",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Video processing engine - HLS streaming, effects, transformations. Minimal, extensible, future-proof.",
   "type": "module",
   "sideEffects": false,
@@ -21,17 +21,22 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "vitest run --project unit",
+    "test:unit": "vitest run --project unit",
+    "test:e2e": "vitest run --project e2e",
+    "test:all": "vitest run",
+    "test:watch": "vitest --project unit",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage",
-    "prepublishOnly": "npm run build"
+    "test:coverage": "vitest run --project unit --coverage",
+    "prepublishOnly": "npm run build && npm run test:unit",
+    "push": "classytic-push"
   },
   "keywords": [
     "video",
@@ -50,6 +55,10 @@
   ],
   "author": "Classytic",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/classytic/vixel"
@@ -61,6 +70,7 @@
     "fluent-ffmpeg": "^2.1.0"
   },
   "devDependencies": {
+    "@classytic/dev-tools": "^0.2.0",
     "@types/fluent-ffmpeg": "^2.1.27",
     "@types/node": "^22.10.2",
     "@vitest/ui": "^2.1.8",

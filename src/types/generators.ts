@@ -9,6 +9,13 @@
 // Shared Base Types
 // =============================================================================
 
+/** Captured ffmpeg command details (for debugging / dry-run). */
+export interface GeneratorCommand {
+  ffmpegPath: string;
+  args: string[];
+  command: string;
+}
+
 /**
  * Base configuration shared by all generators
  */
@@ -19,7 +26,22 @@ export interface BaseGeneratorConfig {
   ffprobePath?: string;
   /** Enable debug logging */
   debug?: boolean;
+  /** FFmpeg process timeout in ms. Defaults to 10 minutes. */
+  timeout?: number;
+  /** Abort the operation via an AbortSignal. Rejects with `AbortError`. */
+  signal?: AbortSignal;
+  /** Build the ffmpeg command but do not execute it. */
+  dryRun?: boolean;
+  /** Called with the exact ffmpeg command before execution (or in dry-run). */
+  onCommand?: (cmd: GeneratorCommand) => void;
 }
+
+/** Progress callback shape used by all generators. */
+export type GeneratorProgressCallback = (progress: {
+  percentage: number;
+  currentSec: number;
+  totalSec: number;
+}) => void;
 
 /**
  * Video source metadata for generators
@@ -68,6 +90,8 @@ export interface TimeRange {
  * GIF generation configuration
  */
 export interface GifConfig extends BaseGeneratorConfig {
+  /** Progress callback */
+  onProgress?: GeneratorProgressCallback;
   /** Output format */
   format?: GifOutputFormat;
   /** Output width in pixels (height auto-calculated) */
@@ -213,10 +237,24 @@ export interface ThumbnailsResult {
  * Sprite sheet configuration
  */
 export interface SpriteConfig extends BaseGeneratorConfig {
+  /** Progress callback */
+  onProgress?: GeneratorProgressCallback;
   /** Interval between thumbnails in seconds */
   interval?: number;
   /** Thumbnail width in pixels */
   width?: number;
+  /**
+   * Explicit thumbnail height in pixels. Takes precedence over `aspectRatio`.
+   * Set this (or `aspectRatio`) for non-16:9 sources (e.g. 9:16 vertical) to
+   * avoid letterboxing each cell with black bars.
+   */
+  height?: number;
+  /**
+   * Cell aspect ratio as width/height (e.g. `16/9` ≈ 1.778 landscape,
+   * `9/16` = 0.5625 portrait). Used to derive height from width when `height`
+   * is not given. Defaults to the 16:9 sprite constant.
+   */
+  aspectRatio?: number;
   /** Thumbnails per row */
   columns?: number;
   /** Output format for sprite sheet */
@@ -395,6 +433,8 @@ export type WatermarkType = 'image' | 'text';
  */
 export interface ImageWatermarkConfig extends BaseGeneratorConfig {
   type: 'image';
+  /** Progress callback */
+  onProgress?: GeneratorProgressCallback;
   /** Path to watermark image */
   imagePath: string;
   /** Position preset */
@@ -412,6 +452,8 @@ export interface ImageWatermarkConfig extends BaseGeneratorConfig {
  */
 export interface TextWatermarkConfig extends BaseGeneratorConfig {
   type: 'text';
+  /** Progress callback */
+  onProgress?: GeneratorProgressCallback;
   /** Text to display */
   text: string;
   /** Position preset */
@@ -459,6 +501,8 @@ export type AspectRatioPreset =
  * Crop/resize configuration
  */
 export interface CropResizeConfig extends BaseGeneratorConfig {
+  /** Progress callback */
+  onProgress?: GeneratorProgressCallback;
   /** Preset aspect ratio */
   preset?: AspectRatioPreset;
   /** Custom width (if preset='custom') */
@@ -510,6 +554,8 @@ export type AudioCodec = 'aac' | 'copy';
  * Compression configuration
  */
 export interface CompressionConfig extends BaseGeneratorConfig {
+  /** Progress callback */
+  onProgress?: GeneratorProgressCallback;
   /** Video codec (default: libx264) */
   videoCodec?: VideoCodec;
   /** CRF quality 0-51, lower=better (default 23) */
@@ -546,6 +592,8 @@ export interface CompressionResult {
  * Trim/clip configuration
  */
 export interface TrimConfig extends BaseGeneratorConfig {
+  /** Progress callback */
+  onProgress?: GeneratorProgressCallback;
   /** Start time in seconds */
   start: number;
   /** End time in seconds (optional, uses duration if not provided) */
@@ -620,6 +668,8 @@ export type ConcatMethod = 'auto' | 'fast' | 'reencode';
  * Concatenation configuration
  */
 export interface ConcatConfig extends BaseGeneratorConfig {
+  /** Progress callback */
+  onProgress?: GeneratorProgressCallback;
   /** Method (auto detects, fast requires same codec/resolution, reencode normalizes) */
   method?: ConcatMethod;
   /** Target width for reencode method */
@@ -652,11 +702,13 @@ export interface ConcatResult extends GeneratorResult {
  * Speed adjustment configuration
  */
 export interface SpeedConfig extends BaseGeneratorConfig {
+  /** Progress callback */
+  onProgress?: GeneratorProgressCallback;
   /** Speed multiplier (0.5 = half speed, 2.0 = double speed) */
   speed: number;
-  /** Maintain audio pitch (default: false) */
+  /** Maintain audio pitch via `atempo` (default: true). When false, pitch shifts with speed. */
   maintainPitch?: boolean;
-  /** Video codec */
+  /** Video codec (default: libx264) */
   videoCodec?: 'libx264' | 'libx265';
   /** CRF quality (default: 23) */
   crf?: number;
@@ -687,6 +739,8 @@ export type VideoFormat = 'mp4' | 'webm' | 'mov' | 'avi';
  * Format conversion configuration
  */
 export interface ConvertConfig extends BaseGeneratorConfig {
+  /** Progress callback */
+  onProgress?: GeneratorProgressCallback;
   /** Target format */
   format: VideoFormat;
   /** Video codec (auto-selected if not provided) */

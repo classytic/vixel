@@ -8,11 +8,12 @@ import type { VideoSource } from '../../types/generators.js';
 export type ConcatMethod = 'auto' | 'fast' | 'reencode';
 
 export interface ConcatConfig extends BaseGeneratorConfig {
-  method?: ConcatMethod;  // 'auto' detects, 'fast' requires same codec/resolution, 'reencode' normalizes
-  targetWidth?: number;   // For reencode method
-  targetHeight?: number;  // For reencode method
+  method?: ConcatMethod;
+  targetWidth?: number;
+  targetHeight?: number;
   videoCodec?: 'libx264' | 'libx265';
-  crf?: number;          // Quality for reencode (default: 23)
+  crf?: number;
+  onProgress?: (progress: { percentage: number; currentSec: number; totalSec: number }) => void;
 }
 
 export interface ConcatResult extends GeneratorResult {

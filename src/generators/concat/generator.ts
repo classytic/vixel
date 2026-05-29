@@ -4,8 +4,9 @@
  * Concatenate multiple videos with automatic method detection
  */
 
-import { spawn } from 'node:child_process';
-import { stat, writeFile, unlink } from 'node:fs/promises';
+import { spawnFFmpeg, configToSpawnOptions, type SpawnFFmpegOptions } from '../../core/ffmpeg-spawn.js';
+import { outputSize } from '../../core/temp-manager.js';
+import { writeFile, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import type { VideoSource } from '../../types/generators.js';
@@ -15,35 +16,9 @@ import { CONCAT_COMMANDS, logFFmpegCommand } from '../../core/ffmpeg-commands.js
 import { logger, OperationValidator } from '../../core/logger.js';
 import { probeVideo } from '../../core/probe.js';
 
-/**
- * Execute FFmpeg command helper
- */
-async function executeFFmpeg(ffmpegPath: string, args: string[], operation: string): Promise<void> {
+async function executeFFmpeg(ffmpegPath: string, args: string[], operation: string, opts: SpawnFFmpegOptions = {}): Promise<void> {
   logFFmpegCommand(ffmpegPath, args, operation);
-
-  await new Promise<void>((resolve, reject) => {
-    const ffmpeg = spawn(ffmpegPath, args);
-
-    let stderr = '';
-    ffmpeg.stderr?.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    ffmpeg.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        logger.error(`FFmpeg ${operation} failed with code ${code}`);
-        logger.debug(`FFmpeg stderr: ${stderr}`);
-        reject(new Error(`FFmpeg ${operation} failed with code ${code}`));
-      }
-    });
-
-    ffmpeg.on('error', (err) => {
-      logger.error(`FFmpeg process error: ${err.message}`);
-      reject(err);
-    });
-  });
+  await spawnFFmpeg(ffmpegPath, args, opts);
 }
 
 /**
@@ -150,7 +125,7 @@ export async function concatenateVideos(
   }
 
   try {
-    await executeFFmpeg(ffmpegPath, args, 'concatenation');
+    await executeFFmpeg(ffmpegPath, args, 'concatenation', configToSpawnOptions(mergedConfig, totalDuration > 0 ? totalDuration : undefined));
   } finally {
     // Cleanup concat file
     if (concatFilePath) {
@@ -161,14 +136,14 @@ export async function concatenateVideos(
     }
   }
 
-  const outputStats = await stat(outputPath);
+  const fileSize = await outputSize(outputPath, mergedConfig.dryRun);
   const processingTime = Date.now() - startTime;
 
   logger.info(`Concatenation completed in ${(processingTime / 1000).toFixed(2)}s`);
 
   const result: ConcatResult = {
     outputPath,
-    fileSize: outputStats.size,
+    fileSize,
     processingTime,
     fileCount: sources.length,
     method,

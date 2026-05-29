@@ -3,10 +3,11 @@
  */
 
 import { promisify } from 'node:util';
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import type { VideoCodec, HardwareAccel, EncodingPreset, AudioCodec } from './types.js';
 
-const execAsync = promisify(exec);
+// execFile (NOT exec) — no shell, so a custom ffmpegPath can't inject commands.
+const execFileAsync = promisify(execFile);
 
 // =============================================================================
 // Defaults
@@ -42,7 +43,7 @@ export async function detectHardwareAccel(ffmpegPath: string): Promise<HardwareA
   const available: HardwareAccel[] = ['none'];
 
   try {
-    const { stdout } = await execAsync(`"${ffmpegPath}" -hide_banner -encoders`);
+    const { stdout } = await execFileAsync(ffmpegPath, ['-hide_banner', '-encoders']);
 
     // Check for NVENC
     if (stdout.includes('h264_nvenc')) {

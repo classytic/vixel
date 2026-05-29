@@ -4,43 +4,28 @@
  * Extract, replace, adjust, and normalize audio
  */
 
-import { spawn } from 'node:child_process';
 import { stat } from 'node:fs/promises';
+import { normalize } from 'node:path';
+import { spawnFFmpeg, configToSpawnOptions, type SpawnFFmpegOptions } from '../../core/ffmpeg-spawn.js';
+import { outputSize } from '../../core/temp-manager.js';
 import type { VideoSource } from '../../types/generators.js';
-import type { AudioExtractConfig, VolumeConfig, AudioResult } from './types.js';
-import { DEFAULT_AUDIO_CONFIG, validateAudioFormat, validateVolume, AUDIO_CODEC_MAP } from './constants.js';
+import type { AudioExtractConfig, VolumeConfig, AudioResult, LoudnessConfig } from './types.js';
+import {
+  DEFAULT_AUDIO_CONFIG,
+  validateAudioFormat,
+  validateVolume,
+  AUDIO_CODEC_MAP,
+  LOUDNESS_PRESETS,
+  buildLoudnormFilter,
+  parseLoudnormJson,
+  type LoudnormMeasurements,
+} from './constants.js';
 import { AUDIO_COMMANDS, logFFmpegCommand } from '../../core/ffmpeg-commands.js';
 import { logger, OperationValidator } from '../../core/logger.js';
 
-/**
- * Execute FFmpeg command helper
- */
-async function executeFFmpeg(ffmpegPath: string, args: string[], operation: string): Promise<void> {
+async function executeFFmpeg(ffmpegPath: string, args: string[], operation: string, opts: SpawnFFmpegOptions = {}): Promise<void> {
   logFFmpegCommand(ffmpegPath, args, operation);
-
-  await new Promise<void>((resolve, reject) => {
-    const ffmpeg = spawn(ffmpegPath, args);
-
-    let stderr = '';
-    ffmpeg.stderr?.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    ffmpeg.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        logger.error(`FFmpeg ${operation} failed with code ${code}`);
-        logger.debug(`FFmpeg stderr: ${stderr}`);
-        reject(new Error(`FFmpeg ${operation} failed with code ${code}`));
-      }
-    });
-
-    ffmpeg.on('error', (err) => {
-      logger.error(`FFmpeg process error: ${err.message}`);
-      reject(err);
-    });
-  });
+  await spawnFFmpeg(ffmpegPath, args, opts);
 }
 
 /**
@@ -76,16 +61,16 @@ export async function extractAudio(
     mergedConfig.bitrate
   );
 
-  await executeFFmpeg(ffmpegPath, args, 'audio extraction');
+  await executeFFmpeg(ffmpegPath, args, 'audio extraction', configToSpawnOptions(mergedConfig));
 
-  const outputStats = await stat(outputPath);
+  const outputFileSize = await outputSize(outputPath, mergedConfig.dryRun);
   const processingTime = Date.now() - startTime;
 
   logger.info(`Audio extraction completed in ${(processingTime / 1000).toFixed(2)}s`);
 
   return {
     outputPath,
-    fileSize: outputStats.size,
+    fileSize: outputFileSize,
     processingTime,
     audioCodec: AUDIO_CODEC_MAP[mergedConfig.format],
     bitrate: mergedConfig.bitrate,
@@ -118,16 +103,16 @@ export async function replaceAudio(
   const ffmpegPath = mergedConfig.ffmpegPath || 'ffmpeg';
   const args = AUDIO_COMMANDS.replaceAudio(videoSource.inputPath, audioPath, outputPath);
 
-  await executeFFmpeg(ffmpegPath, args, 'audio replacement');
+  await executeFFmpeg(ffmpegPath, args, 'audio replacement', configToSpawnOptions(mergedConfig));
 
-  const outputStats = await stat(outputPath);
+  const outputFileSize = await outputSize(outputPath, mergedConfig.dryRun);
   const processingTime = Date.now() - startTime;
 
   logger.info(`Audio replacement completed in ${(processingTime / 1000).toFixed(2)}s`);
 
   return {
     outputPath,
-    fileSize: outputStats.size,
+    fileSize: outputFileSize,
     processingTime,
   };
 }
@@ -164,16 +149,16 @@ export async function adjustVolume(
   const ffmpegPath = mergedConfig.ffmpegPath || 'ffmpeg';
   const args = AUDIO_COMMANDS.adjustVolume(source.inputPath, outputPath, config.volume);
 
-  await executeFFmpeg(ffmpegPath, args, 'volume adjustment');
+  await executeFFmpeg(ffmpegPath, args, 'volume adjustment', configToSpawnOptions(mergedConfig));
 
-  const outputStats = await stat(outputPath);
+  const outputFileSize = await outputSize(outputPath, mergedConfig.dryRun);
   const processingTime = Date.now() - startTime;
 
   logger.info(`Volume adjustment completed in ${(processingTime / 1000).toFixed(2)}s`);
 
   return {
     outputPath,
-    fileSize: outputStats.size,
+    fileSize: outputFileSize,
     processingTime,
   };
 }
@@ -203,16 +188,74 @@ export async function normalizeAudio(
   const ffmpegPath = mergedConfig.ffmpegPath || 'ffmpeg';
   const args = AUDIO_COMMANDS.normalizeAudio(source.inputPath, outputPath);
 
-  await executeFFmpeg(ffmpegPath, args, 'audio normalization');
+  await executeFFmpeg(ffmpegPath, args, 'audio normalization', configToSpawnOptions(mergedConfig));
 
-  const outputStats = await stat(outputPath);
+  const outputFileSize = await outputSize(outputPath, mergedConfig.dryRun);
   const processingTime = Date.now() - startTime;
 
   logger.info(`Audio normalization completed in ${(processingTime / 1000).toFixed(2)}s`);
 
   return {
     outputPath,
-    fileSize: outputStats.size,
+    fileSize: outputFileSize,
     processingTime,
+  };
+}
+
+/**
+ * Normalize to a target integrated loudness (LUFS) using EBU R128 `loudnorm`.
+ * Two-pass by default: pass 1 measures, pass 2 applies for an accurate, linear
+ * result. Use a `preset` ('youtube' → -14 LUFS) or set `targetLufs` directly.
+ *
+ * @example
+ * ```typescript
+ * await normalizeLoudness(source, './out.mp4', { preset: 'youtube' }); // -14 LUFS
+ * ```
+ */
+export async function normalizeLoudness(
+  source: VideoSource,
+  outputPath: string,
+  config: LoudnessConfig = {},
+): Promise<AudioResult> {
+  const startTime = Date.now();
+  const ffmpegPath = config.ffmpegPath ?? 'ffmpeg';
+  const targetLufs = config.targetLufs ?? (config.preset ? LOUDNESS_PRESETS[config.preset] : -14);
+  const truePeak = config.truePeak ?? -1;
+  const lra = config.lra ?? 11;
+  const twoPass = config.twoPass ?? true;
+  const audioCodec = config.audioCodec ?? 'aac';
+
+  let measured: LoudnormMeasurements | undefined;
+
+  // Pass 1 — measure (skipped in dry-run; we still emit the pass-2 command).
+  if (twoPass && !config.dryRun) {
+    const measureFilter = buildLoudnormFilter({ targetLufs, truePeak, lra, printJson: true });
+    let stderr = '';
+    await spawnFFmpeg(
+      ffmpegPath,
+      ['-i', normalize(source.inputPath), '-af', measureFilter, '-f', 'null', process.platform === 'win32' ? 'NUL' : '/dev/null'],
+      { ...configToSpawnOptions(config, source.duration), onStderr: (c) => { stderr += c; } },
+    );
+    measured = parseLoudnormJson(stderr) ?? undefined;
+  }
+
+  const applyFilter = buildLoudnormFilter({ targetLufs, truePeak, lra, measured });
+  const args = [
+    '-i', normalize(source.inputPath),
+    '-af', applyFilter,
+    '-c:v', 'copy',
+    '-c:a', audioCodec,
+    '-y',
+    normalize(outputPath),
+  ];
+
+  await spawnFFmpeg(ffmpegPath, args, configToSpawnOptions(config, source.duration));
+
+  const outputFileSize = await outputSize(outputPath, config.dryRun);
+  return {
+    outputPath,
+    fileSize: outputFileSize,
+    processingTime: Date.now() - startTime,
+    audioCodec,
   };
 }

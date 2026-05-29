@@ -2,13 +2,21 @@
  * Speed Adjustment Generator Types
  */
 
-import type { BaseGeneratorConfig, GeneratorResult } from '../../types/generators.js';
+import type { BaseGeneratorConfig, GeneratorProgressCallback, GeneratorResult } from '../../types/generators.js';
 
 export interface SpeedConfig extends BaseGeneratorConfig {
-  speed: number;  // 0.5 = half speed, 2.0 = double speed
-  maintainPitch?: boolean;  // Keep audio pitch (default: false)
+  /** Playback speed multiplier. 2 = twice as fast, 0.5 = half speed. Range 0.25–4.0. */
+  speed: number;
+  /**
+   * Keep the original audio pitch (tempo-only change via `atempo`). Default `true`.
+   * Set `false` for a tape-style effect where pitch rises/falls with speed.
+   */
+  maintainPitch?: boolean;
+  /** Output video codec. Default `libx264`. */
   videoCodec?: 'libx264' | 'libx265';
-  crf?: number;  // Quality (default: 23)
+  /** CRF quality (lower = better). Default `23`. */
+  crf?: number;
+  onProgress?: GeneratorProgressCallback;
 }
 
 export interface SpeedResult extends GeneratorResult {

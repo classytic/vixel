@@ -34,6 +34,61 @@
 export { HLSProcessor } from './processor.js';
 export { HLSProcessor as default } from './processor.js';
 
+// Errors, codes, guards, tryCatch
+export {
+  ErrorCode,
+  VixelError,
+  FFmpegError,
+  HLSProcessorError,
+  AbortError,
+  isVixelError,
+  isFFmpegError,
+  isHLSProcessorError,
+  isAbortError,
+  tryCatch,
+  tryCatchSync,
+  type VixelResult,
+} from './errors.js';
+
+// =============================================================================
+// Composition — Fluent Pipeline
+// =============================================================================
+
+export {
+  pipeline,
+  VideoPipeline,
+  type PipelineOptions,
+  type PipelineResult,
+  type PipelineProgress,
+} from './pipeline.js';
+
+// =============================================================================
+// Infrastructure — spawn, temp files, concurrency
+// =============================================================================
+
+export {
+  spawnFFmpeg,
+  buildCommandString,
+  configToSpawnOptions,
+  checkFFmpegVersion,
+  type SpawnFFmpegOptions,
+  type SpawnFFmpegProgress,
+  type FFmpegCommand,
+} from './core/ffmpeg-spawn.js';
+
+export {
+  TempFileManager,
+  removeQuietly,
+  outputSize,
+} from './core/temp-manager.js';
+
+export {
+  createLimiter,
+  mapWithConcurrency,
+  mapSettled,
+  type Task,
+} from './core/concurrency.js';
+
 // Types
 export * from './types/index.js';
 
@@ -136,6 +191,50 @@ export {
   changeSpeed,
   // Format Conversion Generator
   convertFormat,
+  // Audio Mix Generator (voiceover + music ducking)
+  mixAudio,
+  buildAudioMixFilter,
+  // Caption Burn-in Generator
+  burnCaptions,
+  buildSubtitlesFilter,
+  buildDrawtextFilter,
+  escapeSubtitlePath,
+  escapeDrawtext,
+  // Transition Concat Generator
+  concatWithTransitions,
+  buildXfadeGraph,
+  // Reframe Generator
+  reframe,
+  buildReframeFilter,
+  ASPECT_DIMENSIONS,
+  // Fade Generator
+  fade,
+  buildFadeFilters,
+  // Frame Extraction Generator
+  extractFrameAt,
+  // Audio loudness
+  normalizeLoudness,
+  buildLoudnormFilter,
+  LOUDNESS_PRESETS,
+  // Ken Burns Generator
+  kenBurns,
+  buildKenBurnsFilter,
+  // Slideshow Generator
+  slideshow,
+  // Color Generator
+  adjustColor,
+  applyLut,
+  buildColorAdjustFilter,
+  buildLut3dFilter,
+  // Glow / Bloom Generator
+  glow,
+  buildGlowFilter,
+  // Parallax (2.5D) Generator
+  parallax3d,
+  buildParallaxFilter,
+  // Overlay Generator (atmosphere overlays)
+  overlay,
+  buildOverlayFilter,
 } from './generators/index.js';
 
 export type {
@@ -201,6 +300,55 @@ export type {
   ConvertConfig,
   ConvertResult,
   VideoFormat,
+  // Audio Mix types
+  AudioMixConfig,
+  AudioMixResult,
+  // Caption types
+  CaptionConfig,
+  CaptionResult,
+  CaptionPosition,
+  // Transition types
+  TransitionConfig,
+  TransitionResult,
+  XfadeTransition,
+  // Reframe types
+  ReframeConfig,
+  ReframeResult,
+  ReframeAspect,
+  ReframeMode,
+  // Fade types
+  FadeConfig,
+  FadeResult,
+  // Frame types
+  FrameConfig,
+  FrameResult,
+  FrameFormat,
+  // Audio loudness types
+  LoudnessConfig,
+  LoudnessPreset,
+  // Ken Burns types
+  KenBurnsConfig,
+  KenBurnsResult,
+  KenBurnsDirection,
+  // Slideshow types
+  Slide,
+  SlideshowConfig,
+  SlideshowResult,
+  // Color types
+  ColorAdjustConfig,
+  ColorLutConfig,
+  ColorResult,
+  // Glow types
+  GlowConfig,
+  GlowResult,
+  // Parallax types
+  ParallaxConfig,
+  ParallaxResult,
+  ParallaxMode,
+  // Overlay types
+  OverlayConfig,
+  OverlayResult,
+  OverlayBlend,
   // Shared types
   VideoSource as GeneratorVideoSource,
   BaseGeneratorConfig,

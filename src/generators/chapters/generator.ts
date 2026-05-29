@@ -24,6 +24,7 @@ import {
   WEBVTT_HEADER,
   WEBVTT_CUE,
 } from './constants.js';
+import { VixelError, ErrorCode } from '../../errors.js';
 
 // =============================================================================
 // Main Generator Function
@@ -84,7 +85,7 @@ export async function generateChapters(
   switch (mode) {
     case 'manual': {
       if (!manualChapters || manualChapters.length === 0) {
-        throw new Error('Manual mode requires chapters array');
+        throw new VixelError('Manual mode requires chapters array', ErrorCode.INVALID_CONFIG);
       }
       chapters = validateAndSortChapters(manualChapters, source.duration, debug);
       break;
@@ -213,7 +214,7 @@ function validateAndSortChapters(
 
   for (const ch of sorted) {
     if (ch.startTime < 0) {
-      throw new Error(`Invalid chapter timestamp: ${ch.title} has negative startTime (${ch.startTime})`);
+      throw new VixelError(`Invalid chapter timestamp: ${ch.title} has negative startTime (${ch.startTime})`, ErrorCode.INVALID_INPUT);
     }
     if (ch.startTime > duration && debug) {
       console.warn(`[Chapters] Warning: Chapter "${ch.title}" starts after video ends (${ch.startTime}s > ${duration}s)`);

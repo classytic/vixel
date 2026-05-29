@@ -4,14 +4,15 @@
  * Change video speed with audio synchronization
  */
 
-import { spawn } from 'node:child_process';
 import { stat } from 'node:fs/promises';
+import { spawnFFmpeg, configToSpawnOptions } from '../../core/ffmpeg-spawn.js';
+import { outputSize } from '../../core/temp-manager.js';
 import type { VideoSource } from '../../types/generators.js';
 import type { SpeedConfig, SpeedResult } from './types.js';
 import { DEFAULT_SPEED_CONFIG, validateSpeedConfig } from './constants.js';
 import { SPEED_COMMANDS, logFFmpegCommand } from '../../core/ffmpeg-commands.js';
 import { logger, OperationValidator } from '../../core/logger.js';
-import { probeVideo } from '../../core/probe.js';
+import { probeVideo, type VideoMetadata } from '../../core/probe.js';
 
 /**
  * Change video playback speed
@@ -33,8 +34,15 @@ export async function changeSpeed(
     logger.warn(`Extreme speed change (${config.speed}x) may result in quality loss`);
   }
 
-  // Get duration
-  const duration = source.duration || (await probeVideo(source.inputPath)).duration || 0;
+  const maintainPitch = mergedConfig.maintainPitch;
+
+  // Probe when we need the duration and/or the audio sample rate (the
+  // pitch-shift path needs the real rate). Skipped entirely in dry-run.
+  let meta: VideoMetadata | undefined;
+  if (!config.dryRun && (!source.duration || !maintainPitch)) {
+    meta = await probeVideo(source.inputPath);
+  }
+  const duration = source.duration || meta?.duration || 0;
   const newDuration = duration / config.speed;
 
   // Validation warnings
@@ -51,43 +59,24 @@ export async function changeSpeed(
   OperationValidator.logWarnings(warnings);
 
   const ffmpegPath = mergedConfig.ffmpegPath || 'ffmpeg';
-  const args = SPEED_COMMANDS.changeSpeed(source.inputPath, outputPath, config.speed);
-
-  logFFmpegCommand(ffmpegPath, args, 'speed adjustment');
-
-  // Execute FFmpeg
-  await new Promise<void>((resolve, reject) => {
-    const ffmpeg = spawn(ffmpegPath, args);
-
-    let stderr = '';
-    ffmpeg.stderr?.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    ffmpeg.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        logger.error(`FFmpeg speed adjustment failed with code ${code}`);
-        logger.debug(`FFmpeg stderr: ${stderr}`);
-        reject(new Error(`FFmpeg speed adjustment failed with code ${code}`));
-      }
-    });
-
-    ffmpeg.on('error', (err) => {
-      logger.error(`FFmpeg process error: ${err.message}`);
-      reject(err);
-    });
+  const args = SPEED_COMMANDS.changeSpeed(source.inputPath, outputPath, config.speed, {
+    videoCodec: mergedConfig.videoCodec,
+    crf: mergedConfig.crf,
+    maintainPitch,
+    ...(meta?.audioSampleRate ? { sampleRate: meta.audioSampleRate } : {}),
   });
 
-  const outputStats = await stat(outputPath);
+  logFFmpegCommand(ffmpegPath, args, 'speed adjustment');
+  await spawnFFmpeg(ffmpegPath, args, configToSpawnOptions(mergedConfig, duration > 0 ? duration : undefined));
+
+  const fileSize = await outputSize(outputPath, mergedConfig.dryRun);
   const processingTime = Date.now() - startTime;
 
   logger.info(`Speed adjustment completed in ${(processingTime / 1000).toFixed(2)}s`);
 
   const result: SpeedResult = {
     outputPath,
-    fileSize: outputStats.size,
+    fileSize,
     processingTime,
     speed: config.speed,
   };

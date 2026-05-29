@@ -4,8 +4,9 @@
  * Convert videos between different formats
  */
 
-import { spawn } from 'node:child_process';
 import { stat } from 'node:fs/promises';
+import { spawnFFmpeg, configToSpawnOptions } from '../../core/ffmpeg-spawn.js';
+import { outputSize } from '../../core/temp-manager.js';
 import type { VideoSource } from '../../types/generators.js';
 import type { ConvertConfig, ConvertResult } from './types.js';
 import { DEFAULT_CONVERT_CONFIG, validateFormatConfig, getCodecsForFormat } from './constants.js';
@@ -94,40 +95,16 @@ export async function convertFormat(
   }
 
   logFFmpegCommand(ffmpegPath, args, 'format conversion');
+  await spawnFFmpeg(ffmpegPath, args, configToSpawnOptions(mergedConfig, source.duration));
 
-  // Execute FFmpeg
-  await new Promise<void>((resolve, reject) => {
-    const ffmpeg = spawn(ffmpegPath, args);
-
-    let stderr = '';
-    ffmpeg.stderr?.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    ffmpeg.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        logger.error(`FFmpeg format conversion failed with code ${code}`);
-        logger.debug(`FFmpeg stderr: ${stderr}`);
-        reject(new Error(`FFmpeg format conversion failed with code ${code}`));
-      }
-    });
-
-    ffmpeg.on('error', (err) => {
-      logger.error(`FFmpeg process error: ${err.message}`);
-      reject(err);
-    });
-  });
-
-  const outputStats = await stat(outputPath);
+  const fileSize = await outputSize(outputPath, mergedConfig.dryRun);
   const processingTime = Date.now() - startTime;
 
   logger.info(`Format conversion completed in ${(processingTime / 1000).toFixed(2)}s`);
 
   return {
     outputPath,
-    fileSize: outputStats.size,
+    fileSize,
     processingTime,
     format: config.format,
     videoCodec,

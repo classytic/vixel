@@ -3,7 +3,9 @@
  */
 
 export const DEFAULT_SPEED_CONFIG = {
-  maintainPitch: false,
+  // Preserve pitch by default — the natural expectation for a speed ramp.
+  // Set `maintainPitch: false` for a tape-style pitch shift.
+  maintainPitch: true,
   videoCodec: 'libx264' as const,
   crf: 23,
 };

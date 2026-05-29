@@ -404,43 +404,19 @@ export interface ProcessorOptions {
 }
 
 // =============================================================================
-// Error Types
+// Error Types (canonical definitions live in src/errors.ts)
 // =============================================================================
 
-/**
- * HLS Processor Error
- */
-export class HLSProcessorError extends Error {
-  public override readonly cause?: unknown;
-
-  constructor(
-    message: string,
-    public code: string,
-    causeOrDetails?: unknown
-  ) {
-    super(message);
-    this.name = 'HLSProcessorError';
-
-    // Support both 'cause' (standard Error pattern) and 'details' (legacy)
-    if (causeOrDetails instanceof Error) {
-      (this as any).cause = causeOrDetails;
-    } else if (causeOrDetails !== undefined) {
-      (this as any).cause = causeOrDetails;
-    }
-  }
-
-  // Alias for backward compatibility
-  get details(): unknown {
-    return this.cause;
-  }
-}
-
-/**
- * FFmpeg Error
- */
-export class FFmpegError extends HLSProcessorError {
-  constructor(message: string, details?: unknown) {
-    super(message, 'FFMPEG_ERROR', details);
-    this.name = 'FFmpegError';
-  }
-}
+export {
+  ErrorCode,
+  VixelError,
+  FFmpegError,
+  HLSProcessorError,
+  isVixelError,
+  isFFmpegError,
+  isHLSProcessorError,
+  tryCatch,
+  tryCatchSync,
+  type ErrorCode as ErrorCodeType,
+  type VixelResult,
+} from '../errors.js';

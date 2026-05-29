@@ -182,35 +182,61 @@ export const CONCAT_COMMANDS = {
 /**
  * Speed Adjustment Commands
  */
+export interface SpeedCommandOptions {
+  /** Output video codec. Default `libx264`. */
+  videoCodec?: 'libx264' | 'libx265';
+  /** CRF quality (lower = better). Default `23`. */
+  crf?: number;
+  /**
+   * Preserve the original audio pitch via `atempo` (tempo-only). Default `true`.
+   * When `false`, pitch shifts with speed via `asetrate` (tape-style).
+   */
+  maintainPitch?: boolean;
+  /** Audio sample rate in Hz — used by the pitch-shift path. Default `44100`. */
+  sampleRate?: number;
+}
+
 export const SPEED_COMMANDS = {
   /**
-   * Change video speed
+   * Change video speed. `setpts` retimes the video; the audio filter keeps it in
+   * sync — `atempo` to hold pitch, or `asetrate` to let pitch ride the speed.
    */
-  changeSpeed: (inputPath: string, outputPath: string, speed: number): string[] => {
-    logger.debug(`Building speed change command: speed=${speed}x`);
+  changeSpeed: (
+    inputPath: string,
+    outputPath: string,
+    speed: number,
+    opts: SpeedCommandOptions = {}
+  ): string[] => {
+    const { videoCodec = 'libx264', crf = 23, maintainPitch = true, sampleRate = 44100 } = opts;
+    logger.debug(
+      `Building speed change command: speed=${speed}x codec=${videoCodec} crf=${crf} maintainPitch=${maintainPitch}`
+    );
 
     // Calculate PTS (presentation timestamp) multiplier
     const pts = 1 / speed;
 
-    // Calculate audio tempo
-    const atempo = speed;
-
-    // Build atempo filter (max 2.0, so chain if needed)
-    let atempoFilter = '';
-    if (atempo <= 0.5) {
-      atempoFilter = `atempo=0.5,atempo=${atempo / 0.5}`;
-    } else if (atempo <= 2.0) {
-      atempoFilter = `atempo=${atempo}`;
+    let audioFilter: string;
+    if (maintainPitch) {
+      // atempo is clamped to [0.5, 2.0], so chain it for more extreme ratios.
+      if (speed <= 0.5) {
+        audioFilter = `atempo=0.5,atempo=${speed / 0.5}`;
+      } else if (speed <= 2.0) {
+        audioFilter = `atempo=${speed}`;
+      } else {
+        audioFilter = `atempo=2.0,atempo=${speed / 2.0}`;
+      }
     } else {
-      atempoFilter = `atempo=2.0,atempo=${atempo / 2.0}`;
+      // Resample to a faster/slower clock (pitch rides the speed), then restore
+      // a standard rate for the encoder.
+      audioFilter = `asetrate=${Math.round(sampleRate * speed)},aresample=${sampleRate}`;
     }
 
     return [
       '-i', inputPath,
       '-filter:v', `setpts=${pts}*PTS`,
-      '-filter:a', atempoFilter,
-      '-c:v', 'libx264',
-      '-crf', '23',
+      '-filter:a', audioFilter,
+      '-c:v', videoCodec,
+      '-crf', String(crf),
       '-preset', 'medium',
       '-c:a', 'aac',
       '-y', outputPath,

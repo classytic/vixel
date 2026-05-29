@@ -24,7 +24,7 @@ describe('Speed Adjustment Generator', () => {
 
   describe('Constants', () => {
     it('should have correct default config', () => {
-      expect(DEFAULT_SPEED_CONFIG.maintainPitch).toBe(false);
+      expect(DEFAULT_SPEED_CONFIG.maintainPitch).toBe(true);
       expect(DEFAULT_SPEED_CONFIG.videoCodec).toBe('libx264');
       expect(DEFAULT_SPEED_CONFIG.crf).toBe(23);
     });

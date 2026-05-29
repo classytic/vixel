@@ -153,6 +153,9 @@ export {
   replaceAudio,
   adjustVolume,
   normalizeAudio,
+  normalizeLoudness,
+  buildLoudnormFilter,
+  LOUDNESS_PRESETS,
 } from './audio/index.js';
 
 export type {
@@ -160,6 +163,8 @@ export type {
   VolumeConfig,
   AudioResult,
   AudioFormat,
+  LoudnessConfig,
+  LoudnessPreset,
 } from './audio/index.js';
 
 // =============================================================================
@@ -196,6 +201,108 @@ export type {
   ConvertResult,
   VideoFormat,
 } from './convert/index.js';
+
+// =============================================================================
+// Audio Mix Generator (voiceover + music ducking)
+// =============================================================================
+
+export { mixAudio, buildAudioMixFilter } from './audio-mix/index.js';
+
+export type { AudioMixConfig, AudioMixResult } from './audio-mix/index.js';
+
+// =============================================================================
+// Caption Burn-in Generator
+// =============================================================================
+
+export {
+  burnCaptions,
+  buildSubtitlesFilter,
+  buildDrawtextFilter,
+  escapeSubtitlePath,
+  escapeDrawtext,
+} from './captions/index.js';
+
+export type { CaptionConfig, CaptionResult, CaptionPosition } from './captions/index.js';
+
+// =============================================================================
+// Transition Concat Generator (xfade / acrossfade)
+// =============================================================================
+
+export { concatWithTransitions, buildXfadeGraph } from './transitions/index.js';
+
+export type { TransitionConfig, TransitionResult, XfadeTransition } from './transitions/index.js';
+
+// =============================================================================
+// Reframe Generator (aspect ratio adaptation)
+// =============================================================================
+
+export { reframe, buildReframeFilter, ASPECT_DIMENSIONS } from './reframe/index.js';
+
+export type { ReframeConfig, ReframeResult, ReframeAspect, ReframeMode } from './reframe/index.js';
+
+// =============================================================================
+// Fade Generator
+// =============================================================================
+
+export { fade, buildFadeFilters } from './fade/index.js';
+
+export type { FadeConfig, FadeResult } from './fade/index.js';
+
+// =============================================================================
+// Frame Extraction Generator
+// =============================================================================
+
+export { extractFrameAt } from './frame/index.js';
+
+export type { FrameConfig, FrameResult, FrameFormat } from './frame/index.js';
+
+// =============================================================================
+// Ken Burns Generator (image → moving clip)
+// =============================================================================
+
+export { kenBurns, buildKenBurnsFilter } from './ken-burns/index.js';
+
+export type { KenBurnsConfig, KenBurnsResult, KenBurnsDirection } from './ken-burns/index.js';
+
+// =============================================================================
+// Slideshow Generator (images → video)
+// =============================================================================
+
+export { slideshow } from './slideshow/index.js';
+
+export type { SlideshowConfig, SlideshowResult, Slide } from './slideshow/index.js';
+
+// =============================================================================
+// Color Generator (adjust knobs + LUT)
+// =============================================================================
+
+export { adjustColor, applyLut, buildColorAdjustFilter, buildLut3dFilter } from './color/index.js';
+
+export type { ColorAdjustConfig, ColorLutConfig, ColorResult } from './color/index.js';
+
+// =============================================================================
+// Glow / Bloom Generator
+// =============================================================================
+
+export { glow, buildGlowFilter } from './glow/index.js';
+
+export type { GlowConfig, GlowResult } from './glow/index.js';
+
+// =============================================================================
+// Parallax (2.5D) Generator
+// =============================================================================
+
+export { parallax3d, buildParallaxFilter } from './parallax/index.js';
+
+export type { ParallaxConfig, ParallaxResult, ParallaxMode } from './parallax/index.js';
+
+// =============================================================================
+// Overlay Generator (atmosphere overlays: light leaks / particles / bokeh)
+// =============================================================================
+
+export { overlay, buildOverlayFilter } from './overlay/index.js';
+
+export type { OverlayConfig, OverlayResult, OverlayBlend } from './overlay/index.js';
 
 // =============================================================================
 // Shared Types

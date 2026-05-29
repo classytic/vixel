@@ -4,8 +4,9 @@
  * Fast and accurate video trimming
  */
 
-import { spawn } from 'node:child_process';
 import { stat } from 'node:fs/promises';
+import { spawnFFmpeg, configToSpawnOptions } from '../../core/ffmpeg-spawn.js';
+import { outputSize } from '../../core/temp-manager.js';
 import type { VideoSource } from '../../types/generators.js';
 import type { TrimConfig, TrimResult } from './types.js';
 import { DEFAULT_TRIM_CONFIG, validateTrimConfig } from './constants.js';
@@ -26,8 +27,9 @@ export async function trimVideo(
 
   logger.info(`Starting trim operation: ${source.inputPath}`);
 
-  // Probe video if duration not provided
-  const duration = source.duration || (await probeVideo(source.inputPath)).duration || 0;
+  // Probe video if duration not provided (skipped in dry-run — no ffprobe).
+  const duration =
+    source.duration || (config.dryRun ? 0 : (await probeVideo(source.inputPath)).duration) || 0;
 
   // Validate configuration
   validateTrimConfig(config.start, config.end, duration);
@@ -74,39 +76,17 @@ export async function trimVideo(
   logFFmpegCommand(ffmpegPath, args, 'trim');
 
   // Execute FFmpeg
-  await new Promise<void>((resolve, reject) => {
-    const ffmpeg = spawn(ffmpegPath, args);
-
-    let stderr = '';
-    ffmpeg.stderr?.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    ffmpeg.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        logger.error(`FFmpeg trim failed with code ${code}`);
-        logger.debug(`FFmpeg stderr: ${stderr}`);
-        reject(new Error(`FFmpeg trim failed with code ${code}`));
-      }
-    });
-
-    ffmpeg.on('error', (err) => {
-      logger.error(`FFmpeg process error: ${err.message}`);
-      reject(err);
-    });
-  });
+  await spawnFFmpeg(ffmpegPath, args, configToSpawnOptions(mergedConfig, duration));
 
   // Get output file size
-  const outputStats = await stat(outputPath);
+  const fileSize = await outputSize(outputPath, mergedConfig.dryRun);
   const processingTime = Date.now() - startTime;
 
   logger.info(`Trim completed in ${(processingTime / 1000).toFixed(2)}s`);
 
   return {
     outputPath,
-    fileSize: outputStats.size,
+    fileSize,
     processingTime,
     start: config.start,
     duration: trimDuration,

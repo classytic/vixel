@@ -12,10 +12,11 @@
  * @module generators/gif
  */
 
-import { spawn, type ChildProcess } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import { join, normalize } from 'node:path';
 import { FFmpegError } from '../../types/index.js';
+import { spawnFFmpeg, configToSpawnOptions, type SpawnFFmpegOptions } from '../../core/ffmpeg-spawn.js';
+import { outputSize } from '../../core/temp-manager.js';
 import type {
   GifConfig,
   GifResult,
@@ -85,6 +86,7 @@ export async function generateGif(
     ffmpegPath = 'ffmpeg',
     debug = false,
   } = config;
+  const clipDuration = timeRange.end - timeRange.start;
 
   // Validate time range
   const duration = timeRange.end - timeRange.start;
@@ -113,12 +115,15 @@ export async function generateGif(
 
   let result: GifResult;
 
+  const spawnOpts = configToSpawnOptions(config, clipDuration);
+
   if (format === 'webp') {
     result = await generateWebP(source, timeRange, outputPath, {
       width,
       fps,
       ffmpegPath,
       quality: DEFAULT_WEBP_QUALITY,
+      spawnOpts,
     });
   } else if (optimization === 'quality') {
     result = await generateGifTwoPass(source, timeRange, outputPath, {
@@ -126,6 +131,7 @@ export async function generateGif(
       fps,
       ffmpegPath,
       outputDir,
+      spawnOpts,
     });
   } else {
     result = await generateGifSinglePass(source, timeRange, outputPath, {
@@ -134,6 +140,7 @@ export async function generateGif(
       ffmpegPath,
       loop,
       loopCount,
+      spawnOpts,
     });
   }
 
@@ -165,11 +172,14 @@ export async function generateGif(
 // Two-Pass GIF Generation (High Quality)
 // =============================================================================
 
+type SpawnOpts = SpawnFFmpegOptions;
+
 interface TwoPassOptions {
   width: number;
   fps: number;
   ffmpegPath: string;
   outputDir: string;
+  spawnOpts: SpawnOpts | undefined;
 }
 
 /**
@@ -182,32 +192,24 @@ async function generateGifTwoPass(
   outputPath: string,
   options: TwoPassOptions
 ): Promise<GifResult> {
-  const { width, fps, ffmpegPath, outputDir } = options;
+  const { width, fps, ffmpegPath, outputDir, spawnOpts } = options;
   const palettePath = join(outputDir, 'palette.png');
 
   try {
-    // Pass 1: Generate palette
-    await executePalettePass(source.inputPath, timeRange, palettePath, {
-      width,
-      fps,
-      ffmpegPath,
-    });
+    // Pass 1: Generate palette (no progress — very fast)
+    await executePalettePass(source.inputPath, timeRange, palettePath, { width, fps, ffmpegPath, spawnOpts: { timeout: spawnOpts?.timeout, signal: spawnOpts?.signal, dryRun: spawnOpts?.dryRun, onCommand: spawnOpts?.onCommand } });
 
     // Pass 2: Encode GIF with palette
-    await executeGifPass(source.inputPath, timeRange, outputPath, palettePath, {
-      width,
-      fps,
-      ffmpegPath,
-    });
+    await executeGifPass(source.inputPath, timeRange, outputPath, palettePath, { width, fps, ffmpegPath, spawnOpts });
 
     // Get file stats
-    const stats = await fs.stat(outputPath);
+    const fileSize = await outputSize(outputPath, spawnOpts?.dryRun);
     const frameCount = Math.ceil(fps * (timeRange.end - timeRange.start));
 
     return {
       outputPath,
       format: 'gif',
-      fileSize: stats.size,
+      fileSize,
       dimensions: { width, height: Math.round(width * 9 / 16) },
       duration: timeRange.end - timeRange.start,
       frameCount,
@@ -226,10 +228,9 @@ async function executePalettePass(
   inputPath: string,
   timeRange: TimeRange,
   palettePath: string,
-  options: { width: number; fps: number; ffmpegPath: string }
+  options: { width: number; fps: number; ffmpegPath: string; spawnOpts?: SpawnOpts | undefined }
 ): Promise<void> {
-  const { width, fps, ffmpegPath } = options;
-
+  const { width, fps, ffmpegPath, spawnOpts } = options;
   const args = [
     '-ss', String(timeRange.start),
     '-t', String(timeRange.end - timeRange.start),
@@ -238,8 +239,7 @@ async function executePalettePass(
     '-y',
     normalize(palettePath),
   ];
-
-  await executeFFmpeg(ffmpegPath, args);
+  await executeFFmpeg(ffmpegPath, args, spawnOpts);
 }
 
 /**
@@ -250,10 +250,9 @@ async function executeGifPass(
   timeRange: TimeRange,
   outputPath: string,
   palettePath: string,
-  options: { width: number; fps: number; ffmpegPath: string }
+  options: { width: number; fps: number; ffmpegPath: string; spawnOpts?: SpawnOpts | undefined }
 ): Promise<void> {
-  const { width, fps, ffmpegPath } = options;
-
+  const { width, fps, ffmpegPath, spawnOpts } = options;
   const args = [
     '-ss', String(timeRange.start),
     '-t', String(timeRange.end - timeRange.start),
@@ -264,8 +263,7 @@ async function executeGifPass(
     '-y',
     normalize(outputPath),
   ];
-
-  await executeFFmpeg(ffmpegPath, args);
+  await executeFFmpeg(ffmpegPath, args, spawnOpts);
 }
 
 // =============================================================================
@@ -278,6 +276,7 @@ interface SinglePassOptions {
   ffmpegPath: string;
   loop: boolean;
   loopCount: number;
+  spawnOpts?: SpawnOpts | undefined;
 }
 
 /**
@@ -289,7 +288,7 @@ async function generateGifSinglePass(
   outputPath: string,
   options: SinglePassOptions
 ): Promise<GifResult> {
-  const { width, fps, ffmpegPath, loop, loopCount } = options;
+  const { width, fps, ffmpegPath, loop, loopCount, spawnOpts } = options;
 
   const args = [
     '-ss', String(timeRange.start),
@@ -301,15 +300,15 @@ async function generateGifSinglePass(
     normalize(outputPath),
   ];
 
-  await executeFFmpeg(ffmpegPath, args);
+  await executeFFmpeg(ffmpegPath, args, spawnOpts);
 
-  const stats = await fs.stat(outputPath);
+  const fileSize = await outputSize(outputPath, spawnOpts?.dryRun);
   const frameCount = Math.ceil(fps * (timeRange.end - timeRange.start));
 
   return {
     outputPath,
     format: 'gif',
-    fileSize: stats.size,
+    fileSize,
     dimensions: { width, height: Math.round(width * 9 / 16) },
     duration: timeRange.end - timeRange.start,
     frameCount,
@@ -326,6 +325,7 @@ interface WebPOptions {
   fps: number;
   ffmpegPath: string;
   quality: number;
+  spawnOpts?: SpawnOpts | undefined;
 }
 
 /**
@@ -337,7 +337,7 @@ async function generateWebP(
   outputPath: string,
   options: WebPOptions
 ): Promise<GifResult> {
-  const { width, fps, ffmpegPath, quality } = options;
+  const { width, fps, ffmpegPath, quality, spawnOpts } = options;
 
   const args = [
     '-ss', String(timeRange.start),
@@ -354,15 +354,15 @@ async function generateWebP(
     normalize(outputPath),
   ];
 
-  await executeFFmpeg(ffmpegPath, args);
+  await executeFFmpeg(ffmpegPath, args, spawnOpts);
 
-  const stats = await fs.stat(outputPath);
+  const fileSize = await outputSize(outputPath, spawnOpts?.dryRun);
   const frameCount = Math.ceil(fps * (timeRange.end - timeRange.start));
 
   return {
     outputPath,
     format: 'webp',
-    fileSize: stats.size,
+    fileSize,
     dimensions: { width, height: Math.round(width * 9 / 16) },
     duration: timeRange.end - timeRange.start,
     frameCount,
@@ -374,30 +374,12 @@ async function generateWebP(
 // FFmpeg Execution Helper
 // =============================================================================
 
-/**
- * Execute FFmpeg command with error handling
- */
-function executeFFmpeg(ffmpegPath: string, args: string[]): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const proc: ChildProcess = spawn(ffmpegPath, args);
-    let stderr = '';
-
-    proc.stderr?.on('data', (data: Buffer) => {
-      stderr += data.toString();
-    });
-
-    proc.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new FFmpegError(`GIF generation failed (exit ${code})`, stderr.slice(-500)));
-      }
-    });
-
-    proc.on('error', (err) => {
-      reject(new FFmpegError(`FFmpeg spawn error: ${err.message}`, err));
-    });
-  });
+function executeFFmpeg(
+  ffmpegPath: string,
+  args: string[],
+  options?: SpawnOpts,
+): Promise<void> {
+  return spawnFFmpeg(ffmpegPath, args, options ?? {});
 }
 
 // =============================================================================

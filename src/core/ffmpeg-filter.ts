@@ -36,7 +36,6 @@
  * ```
  */
 
-import { spawn } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 import type { VideoSource } from '../types/generators.js';
 import type {
@@ -45,6 +44,8 @@ import type {
   FFmpegProgress,
 } from '../types/building-blocks.js';
 import { logger, OperationValidator } from './logger.js';
+import { spawnFFmpeg, buildCommandString } from './ffmpeg-spawn.js';
+import { outputSize } from './temp-manager.js';
 
 /**
  * Apply generic FFmpeg filter(s) to video
@@ -154,55 +155,38 @@ export async function applyFFmpegFilter(
   // Output
   args.push('-y', outputPath);
 
-  const command = `${ffmpegPath} ${args.join(' ')}`;
+  const command = buildCommandString(ffmpegPath, args);
   logger.debug(`FFmpeg command: ${command}`);
 
-  // Execute FFmpeg
-  await new Promise<void>((resolve, reject) => {
-    const ffmpeg = spawn(ffmpegPath, args);
-
-    let stderr = '';
-    let lastProgress: FFmpegProgress | null = null;
-
-    ffmpeg.stderr?.on('data', (data) => {
-      const text = data.toString();
-      stderr += text;
-
-      // Parse progress if callback provided
-      if (config.onProgress) {
-        const progress = parseFFmpegProgress(text, sources[0]?.duration || 0);
-        if (progress && (!lastProgress || progress.currentTime !== lastProgress.currentTime)) {
-          lastProgress = progress;
-          config.onProgress(progress);
+  // Execute via the shared spawn utility — gains timeout, AbortSignal,
+  // dry-run, command capture, and consistent FFmpegError handling.
+  // Rich progress (fps/speed/bitrate) is parsed here via the onStderr hook.
+  let lastProgress: FFmpegProgress | null = null;
+  await spawnFFmpeg(ffmpegPath, args, {
+    timeout: config.timeout,
+    signal: config.signal,
+    dryRun: config.dryRun,
+    onCommand: config.onCommand,
+    onStderr: config.onProgress
+      ? (text) => {
+          const progress = parseFFmpegProgress(text, sources[0]?.duration || 0);
+          if (progress && (!lastProgress || progress.currentTime !== lastProgress.currentTime)) {
+            lastProgress = progress;
+            config.onProgress!(progress);
+          }
         }
-      }
-    });
-
-    ffmpeg.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        logger.error(`FFmpeg filter failed with code ${code}`);
-        logger.debug(`FFmpeg stderr: ${stderr}`);
-        reject(new Error(`FFmpeg filter failed with code ${code}`));
-      }
-    });
-
-    ffmpeg.on('error', (err) => {
-      logger.error(`FFmpeg process error: ${err.message}`);
-      reject(err);
-    });
+      : undefined,
   });
 
   // Get output stats
-  const outputStats = await stat(outputPath);
+  const fileSize = await outputSize(outputPath, config.dryRun);
   const processingTime = Date.now() - startTime;
 
   logger.info(`Filter applied successfully in ${(processingTime / 1000).toFixed(2)}s`);
 
   return {
     outputPath,
-    fileSize: outputStats.size,
+    fileSize,
     processingTime,
     videoCodec,
     audioCodec,

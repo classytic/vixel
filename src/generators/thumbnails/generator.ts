@@ -13,10 +13,11 @@
  * @module generators/thumbnails
  */
 
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import { join, normalize } from 'node:path';
 import { FFmpegError } from '../../types/index.js';
+import { spawnFFmpeg, configToSpawnOptions, type SpawnFFmpegOptions } from '../../core/ffmpeg-spawn.js';
 import type {
   ThumbnailConfig,
   ThumbnailResult,
@@ -108,7 +109,11 @@ export async function extractThumbnail(
     console.log(`[Thumbnail] Extracting at ${timestamp}s to ${outputPath}`);
   }
 
-  await executeFFmpeg(ffmpegPath, args);
+  await executeFFmpeg(ffmpegPath, args, configToSpawnOptions(config));
+
+  if (config.dryRun) {
+    return { outputPath, format, timestamp, dimensions: { width: width, height: scaleHeight > 0 ? scaleHeight : Math.round(width * 9 / 16) }, fileSize: 0 };
+  }
 
   const stats = await fs.stat(outputPath);
   const dimensions = await getImageDimensions(outputPath, ffmpegPath.replace('ffmpeg', 'ffprobe'));
@@ -391,30 +396,8 @@ async function getImageDimensions(
   });
 }
 
-/**
- * Execute FFmpeg command with error handling
- */
-function executeFFmpeg(ffmpegPath: string, args: string[]): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const proc: ChildProcess = spawn(ffmpegPath, args);
-    let stderr = '';
-
-    proc.stderr?.on('data', (data: Buffer) => {
-      stderr += data.toString();
-    });
-
-    proc.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new FFmpegError(`Thumbnail extraction failed (exit ${code})`, stderr.slice(-500)));
-      }
-    });
-
-    proc.on('error', (err) => {
-      reject(new FFmpegError(`FFmpeg spawn error: ${err.message}`, err));
-    });
-  });
+function executeFFmpeg(ffmpegPath: string, args: string[], opts: SpawnFFmpegOptions = {}): Promise<void> {
+  return spawnFFmpeg(ffmpegPath, args, opts);
 }
 
 // =============================================================================

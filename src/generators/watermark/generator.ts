@@ -3,7 +3,8 @@
  * Add image or text watermarks to videos
  */
 
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawnFFmpeg, configToSpawnOptions } from '../../core/ffmpeg-spawn.js';
+import { outputSize } from '../../core/temp-manager.js';
 import { promises as fs } from 'node:fs';
 import { normalize } from 'node:path';
 import type {
@@ -118,16 +119,16 @@ async function addImageWatermark(
     normalize(outputPath),
   ];
 
-  await executeFFmpeg(ffmpegPath, args);
+  await spawnFFmpeg(ffmpegPath, args, configToSpawnOptions(config, source.duration));
 
   // Get output file stats
-  const stats = await fs.stat(outputPath);
+  const fileSize = await outputSize(outputPath, config.dryRun);
 
   return {
     outputPath,
     watermarkType: 'image',
     position,
-    fileSize: stats.size,
+    fileSize,
     duration,
   };
 }
@@ -159,39 +160,16 @@ async function addTextWatermark(
     normalize(outputPath),
   ];
 
-  await executeFFmpeg(ffmpegPath, args);
+  await spawnFFmpeg(ffmpegPath, args, configToSpawnOptions(config, source.duration));
 
   // Get output file stats
-  const stats = await fs.stat(outputPath);
+  const fileSize = await outputSize(outputPath, config.dryRun);
 
   return {
     outputPath,
     watermarkType: 'text',
     position,
-    fileSize: stats.size,
+    fileSize,
     duration,
   };
-}
-
-function executeFFmpeg(ffmpegPath: string, args: string[]): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const proc: ChildProcess = spawn(ffmpegPath, args);
-    let stderr = '';
-
-    proc.stderr?.on('data', (data: Buffer) => {
-      stderr += data.toString();
-    });
-
-    proc.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new FFmpegError(`Watermark generation failed (exit ${code})`, stderr.slice(-500)));
-      }
-    });
-
-    proc.on('error', (err) => {
-      reject(new FFmpegError(`FFmpeg spawn error: ${err.message}`, err));
-    });
-  });
 }

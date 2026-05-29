@@ -20,6 +20,7 @@ import { probeVideo } from './core/probe.js';
 import { generateSprites } from './generators/sprites/generator.js';
 import { generateChapters } from './generators/chapters/generator.js';
 import { Logger } from './utils/logger.js';
+import { checkFFmpegVersion } from './core/ffmpeg-spawn.js';
 import {
   DEFAULT_SPRITE_INTERVAL,
   DEFAULT_SPRITE_WIDTH,
@@ -249,6 +250,15 @@ export class HLSProcessor {
     try {
       // Validate input
       await this.validateInput(inputPath);
+
+      // Warn early if FFmpeg is too old
+      const ver = await checkFFmpegVersion(this.config.ffmpeg.ffmpegPath);
+      if (ver && ver.major < 6) {
+        this.logger.warn(`FFmpeg ${ver.version} detected — version 6.0+ recommended. Some flags (-threads 0, force_key_frames) may not work correctly.`);
+      }
+
+      // Auto-detect hardware acceleration on first use
+      await this.encoder.detectHardwareAcceleration();
 
       // Create output directory
       await fs.mkdir(outputDir, { recursive: true });
