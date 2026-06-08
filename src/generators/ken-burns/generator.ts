@@ -36,14 +36,14 @@ export async function kenBurns(
   const ffmpegPath = config.ffmpegPath ?? 'ffmpeg';
 
   if (!config.duration || config.duration <= 0) {
-    throw new VixelError('kenBurns requires a positive `duration`', ErrorCode.INVALID_CONFIG);
+    throw new VixelError('kenBurns requires a positive `duration`', { code: ErrorCode.INVALID_CONFIG });
   }
 
   if (!config.dryRun) {
     try {
       await fs.access(imagePath);
     } catch {
-      throw new VixelError(`Input image not found: ${imagePath}`, ErrorCode.INVALID_INPUT);
+      throw new VixelError(`Input image not found: ${imagePath}`, { code: ErrorCode.INVALID_INPUT });
     }
   }
 

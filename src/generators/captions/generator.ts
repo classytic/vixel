@@ -38,7 +38,7 @@ export async function burnCaptions(
   const ffmpegPath = config.ffmpegPath ?? 'ffmpeg';
 
   if (!config.subtitlePath && !config.text) {
-    throw new VixelError('burnCaptions requires `subtitlePath` or `text`', ErrorCode.INVALID_CONFIG);
+    throw new VixelError('burnCaptions requires `subtitlePath` or `text`', { code: ErrorCode.INVALID_CONFIG });
   }
 
   const mode: 'subtitles' | 'text' = config.subtitlePath ? 'subtitles' : 'text';
@@ -48,7 +48,7 @@ export async function burnCaptions(
       try {
         await fs.access(p);
       } catch {
-        throw new VixelError(`Input not found: ${p}`, ErrorCode.INVALID_INPUT);
+        throw new VixelError(`Input not found: ${p}`, { code: ErrorCode.INVALID_INPUT });
       }
     }
   }

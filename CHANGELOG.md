@@ -1,5 +1,67 @@
 # Changelog
 
+## [0.3.0] — 2026-06-08
+
+The "premium primitives" release. Vixel grows from an HLS processor into a
+clean, composable FFmpeg primitive engine for AI/agentic video — typed,
+dry-runnable, tree-shakeable, and consumable subpath-by-subpath. New
+`Source` ingest, three profile builders, a BYO-styled caption engine, and a
+declarative `compose()` renderer that turns one spec into one `filter_complex`.
+
+### Added — ingest & source
+
+- **`Source`** primitive (`@classytic/vixel`) — a probed handle over a file,
+  buffer, or remote URL (`fromFile` / `fromMetadata` / `fromUrl`), with frozen
+  metadata and typed video accessors. Probe failure unlinks any temp it created.
+- **`fetchToFile`** + **URL guard** — byte-capped remote fetch with an SSRF
+  guard (`isPrivateOrReservedIp`, `assertSafeUrl`) covering private/reserved
+  IPv4+IPv6, IPv4-mapped/NAT64/6to4/TEST-NET, redirect re-validation, and
+  userinfo stripping. Fail-closed.
+
+### Added — `@classytic/vixel/profiles`
+
+- **`editorProxy`** — faststart H.264 editor proxy: dynamic level (4.1/4.2 from
+  MB/s), fixed GOP / forced keyframes for scrub-accurate seeking, 1080p cap.
+- **`editorPackage`** — proxy + poster + sprite sheet in one call.
+- **`hlsLadder`** — no-upscale adaptive ladder (`ladderFor`).
+
+### Added — `@classytic/vixel/captions`
+
+- **`burnCaptions`** + **`buildAss`** — libass/ASS caption engine with
+  **bring-your-own `TextStyle`** (font, stroke, fill, highlight, shadow).
+- Animation modes: `none` · `fade` · `karaoke` · `pop` · `word-by-word` ·
+  `highlight` · `highlight-box` (CapCut-style active-word emphasis).
+- **`CAPTION_PRESETS`** — tiktok-bold, minimal, karaoke-highlight, word-focus,
+  active-word, boxed.
+
+### Added — `@classytic/vixel/compose` (the MCP surface)
+
+- **`compose(spec, out)`** — declarative `VixelSpec` → one `filter_complex`:
+  multi-clip video track (xfade chain or concat), an audio track with
+  format-normalized mixing + sidechain ducking, and an overlay track of
+  images/GIFs and BYO-styled text. Clip ken-burns/zoom/pan and overlay
+  fade-in/out included. `defineComposition`, `planTimeline`, `buildComposeGraph`
+  exported for hosts that want the pieces.
+- Honest v1 limits (rejected loudly, not silently mis-rendered): mixed
+  hard-cut + crossfade in one track, more than one audio bed, `fit: cover`,
+  and overlay `slide`/`pop` variants.
+
+### Added — quality
+
+- **API-surface conformance harness** (`test/api-surface.test.ts`) — golden
+  snapshots of every entry point's exports so the primitive contract can't
+  drift silently; load-bearing primitives pinned explicitly.
+
+### Changed / Breaking
+
+- **`HLSProcessor` is no longer the default export.** It remains a *named*
+  export (`import { HLSProcessor } from '@classytic/vixel'`). Vixel is a
+  primitive engine, not "an HLS processor" — use named imports / subpaths.
+  Migration: replace `import HLSProcessor from '@classytic/vixel'` with the
+  named import.
+- Internal identity cleanup: residual `@classytic/hls-processor` references in
+  source headers/JSDoc renamed to `@classytic/vixel`.
+
 ## [0.2.0] — 2026-05-30
 
 Consolidates all development since 0.1.0 — infrastructure, 14 new generators,

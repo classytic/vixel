@@ -1,29 +1,33 @@
 /**
  * Vixel by Classytic (@classytic/vixel)
  * ======================================
- * AI-powered video processing engine. Minimal, extensible, future-proof.
+ * A clean, composable FFmpeg primitive engine for AI/agentic video — typed,
+ * dry-runnable, and tree-shakeable. Bring a `Source`, compose a video.
  *
- * @example
+ * Surfaces (import from the subpath you need — the package stays lean):
+ *   - `@classytic/vixel`            Source, ingest, dimensions, errors, primitives
+ *   - `@classytic/vixel/profiles`   editorProxy · editorPackage · hlsLadder
+ *   - `@classytic/vixel/captions`   BYO-styled animated captions (CapCut modes)
+ *   - `@classytic/vixel/compose`    declarative multi-track renderer (the MCP surface)
+ *   - `@classytic/vixel/generators` 24 single-op transforms (trim, kenBurns, …)
+ *
+ * @example A whole video from one declarative spec
  * ```typescript
- * import { HLSProcessor, selectVariant } from '@classytic/vixel';
- *
- * // HLS Streaming - Check source and select optimal variant
- * const { variant, strategy } = selectVariant({
- *   height: 720,
- *   videoCodec: 'vp9',
- *   audioCodec: 'opus',
- * });
- *
- * // Process video to HLS
- * const processor = new HLSProcessor({
- *   variants: [variant],
- *   features: { sprites: true, chapters: true },
- * });
- *
- * const result = await processor.process({
- *   inputPath: './video.webm',
- *   outputDir: './output/hls',
- * });
+ * import { compose } from '@classytic/vixel/compose';
+ * await compose({
+ *   version: 1,
+ *   output: { width: 1080, height: 1920, fps: 30 },
+ *   tracks: [
+ *     { type: 'video', clips: [
+ *       { source: 'a.mp4', duration: 3, transition: { type: 'dissolve', duration: 0.5 },
+ *         animation: { preset: 'kenBurns', direction: 'in' } },
+ *       { source: 'b.mp4', duration: 3 },
+ *     ]},
+ *     { type: 'audio',   items: [{ source: 'music.mp3', role: 'music', duck: { amount: -12 } }] },
+ *     { type: 'overlay', items: [{ kind: 'text', at: 0, duration: 3, text: 'hi there',
+ *         style: { animation: 'highlight', highlightColor: '#39FF14' } }] },
+ *   ],
+ * }, 'out.mp4');
  * ```
  */
 
@@ -31,23 +35,72 @@
 // Core Exports
 // =============================================================================
 
+// HLSProcessor is one primitive among many — a NAMED export, not the package
+// default. Vixel is a primitive engine, not "an HLS processor". Use named
+// imports / subpaths (`@classytic/vixel/profiles`, `/captions`, `/compose`).
 export { HLSProcessor } from './processor.js';
-export { HLSProcessor as default } from './processor.js';
+
+// Primitives — the orthogonal nouns the engine composes (Source, …).
+export { Source, type SourceKind, type SourceInit, type SourceJSON } from './primitives/index.js';
+
+// Remote ingest — SSRF-guarded, byte-capped fetch to a local temp file.
+export {
+  fetchToFile,
+  assertSafeUrl,
+  isPrivateOrReservedIp,
+  type FetchToFileOptions,
+  type FetchResult,
+} from './ingest/index.js';
+
+// Profiles — named encode recipes (editor proxy, editor package, …).
+export {
+  editorProxy,
+  buildEditorProxyArgs,
+  editorPackage,
+  defaultPosterSec,
+  defaultSpriteIntervalSec,
+  hlsLadder,
+  ladderFor,
+  type EditorProxyConfig,
+  type EditorProxyResult,
+  type EditorPackageConfig,
+  type EditorPackageResult,
+  type HlsLadderConfig,
+  type HlsLadderResult,
+} from './profiles/index.js';
+
+// Dimension helpers (4K-cap downscale filter + math).
+export {
+  downscaleFilter,
+  fitWithin,
+  toEven,
+  MAX_PROXY_WIDTH,
+  MAX_PROXY_HEIGHT,
+  type Dimensions,
+} from './core/dimensions.js';
 
 // Errors, codes, guards, tryCatch
 export {
   ErrorCode,
   VixelError,
   FFmpegError,
-  HLSProcessorError,
+  ProbeError,
+  ConfigError,
   AbortError,
+  HLSProcessorError,
   isVixelError,
   isFFmpegError,
-  isHLSProcessorError,
+  isProbeError,
+  isConfigError,
   isAbortError,
+  isHLSProcessorError,
+  toVixelError,
   tryCatch,
   tryCatchSync,
   type VixelResult,
+  type VixelErrorOptions,
+  type ErrorContext,
+  type SerializedVixelError,
 } from './errors.js';
 
 // =============================================================================

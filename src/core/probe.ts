@@ -7,7 +7,7 @@
  */
 
 import ffmpeg from 'fluent-ffmpeg';
-import { FFmpegError, ErrorCode } from '../errors.js';
+import { ProbeError } from '../errors.js';
 
 // =============================================================================
 // Types
@@ -45,10 +45,10 @@ export async function probeVideo(inputPath: string, ffprobePath = 'ffprobe'): Pr
     if (ffprobePath) cmd.setFfprobePath(ffprobePath);
 
     cmd.ffprobe((err, data) => {
-      if (err) return reject(new FFmpegError(`FFprobe failed: ${err.message}`, err, ErrorCode.PROBE_FAILED));
+      if (err) return reject(new ProbeError(`FFprobe failed: ${err.message}`, { cause: err, context: { inputPath } }));
 
       const video = data.streams.find(s => s.codec_type === 'video');
-      if (!video) return reject(new FFmpegError('No video stream found', { inputPath }, ErrorCode.PROBE_FAILED));
+      if (!video) return reject(new ProbeError('No video stream found', { context: { inputPath } }));
 
       const audio = data.streams.find(s => s.codec_type === 'audio');
 

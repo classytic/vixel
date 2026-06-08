@@ -33,17 +33,17 @@ export async function fade(
   const audio = config.audio ?? true;
 
   if (fadeIn <= 0 && fadeOut <= 0) {
-    throw new VixelError('fade requires `fadeIn` and/or `fadeOut` > 0', ErrorCode.INVALID_CONFIG);
+    throw new VixelError('fade requires `fadeIn` and/or `fadeOut` > 0', { code: ErrorCode.INVALID_CONFIG });
   }
   if (fadeOut > 0 && (!source.duration || source.duration <= 0)) {
-    throw new VixelError('fadeOut needs the source `duration` to place the fade', ErrorCode.INVALID_CONFIG);
+    throw new VixelError('fadeOut needs the source `duration` to place the fade', { code: ErrorCode.INVALID_CONFIG });
   }
 
   if (!config.dryRun) {
     try {
       await fs.access(source.inputPath);
     } catch {
-      throw new VixelError(`Input not found: ${source.inputPath}`, ErrorCode.INVALID_INPUT);
+      throw new VixelError(`Input not found: ${source.inputPath}`, { code: ErrorCode.INVALID_INPUT });
     }
   }
 

@@ -347,7 +347,7 @@ export class VideoPipeline {
 
   private async execute(outputPath: string, dryRun: boolean): Promise<PipelineResult> {
     if (this.steps.length === 0) {
-      throw new VixelError('Pipeline has no steps', ErrorCode.INVALID_CONFIG);
+      throw new VixelError('Pipeline has no steps', { code: ErrorCode.INVALID_CONFIG });
     }
 
     const { signal, onProgress, timeout, ffmpegPath, ffprobePath } = this.options;
@@ -361,7 +361,7 @@ export class VideoPipeline {
     try {
       for (let i = 0; i < stepCount; i++) {
         if (signal?.aborted) {
-          throw new VixelError('Pipeline aborted', ErrorCode.ABORTED);
+          throw new VixelError('Pipeline aborted', { code: ErrorCode.ABORTED });
         }
         const step = this.steps[i]!;
         const isLast = i === stepCount - 1;

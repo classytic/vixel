@@ -51,13 +51,13 @@ export async function adjustColor(
 ): Promise<ColorResult> {
   const filter = buildColorAdjustFilter(config);
   if (!filter) {
-    throw new VixelError('adjustColor needs at least one of brightness/contrast/saturation/gamma/sharpen', ErrorCode.INVALID_CONFIG);
+    throw new VixelError('adjustColor needs at least one of brightness/contrast/saturation/gamma/sharpen', { code: ErrorCode.INVALID_CONFIG });
   }
   if (!config.dryRun) {
     try {
       await fs.access(source.inputPath);
     } catch {
-      throw new VixelError(`Input not found: ${source.inputPath}`, ErrorCode.INVALID_INPUT);
+      throw new VixelError(`Input not found: ${source.inputPath}`, { code: ErrorCode.INVALID_INPUT });
     }
   }
   return runVideoFilter(source, outputPath, filter, config, 'adjust');
@@ -69,14 +69,14 @@ export async function applyLut(
   config: ColorLutConfig,
 ): Promise<ColorResult> {
   if (!config.lutPath) {
-    throw new VixelError('applyLut requires `lutPath`', ErrorCode.INVALID_CONFIG);
+    throw new VixelError('applyLut requires `lutPath`', { code: ErrorCode.INVALID_CONFIG });
   }
   if (!config.dryRun) {
     for (const p of [source.inputPath, config.lutPath]) {
       try {
         await fs.access(p);
       } catch {
-        throw new VixelError(`Input not found: ${p}`, ErrorCode.INVALID_INPUT);
+        throw new VixelError(`Input not found: ${p}`, { code: ErrorCode.INVALID_INPUT });
       }
     }
   }

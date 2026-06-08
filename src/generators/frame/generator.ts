@@ -29,17 +29,17 @@ export async function extractFrameAt(
   const format = config.format ?? 'png';
 
   if (timestamp < 0) {
-    throw new VixelError('timestamp must be >= 0', ErrorCode.INVALID_CONFIG);
+    throw new VixelError('timestamp must be >= 0', { code: ErrorCode.INVALID_CONFIG });
   }
   if (source.duration > 0 && timestamp > source.duration) {
-    throw new VixelError(`timestamp ${timestamp}s exceeds duration ${source.duration}s`, ErrorCode.INVALID_CONFIG);
+    throw new VixelError(`timestamp ${timestamp}s exceeds duration ${source.duration}s`, { code: ErrorCode.INVALID_CONFIG });
   }
 
   if (!config.dryRun) {
     try {
       await fs.access(source.inputPath);
     } catch {
-      throw new VixelError(`Input not found: ${source.inputPath}`, ErrorCode.INVALID_INPUT);
+      throw new VixelError(`Input not found: ${source.inputPath}`, { code: ErrorCode.INVALID_INPUT });
     }
   }
 

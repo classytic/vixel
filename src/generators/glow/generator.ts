@@ -32,7 +32,7 @@ export async function glow(
     try {
       await fs.access(source.inputPath);
     } catch {
-      throw new VixelError(`Input not found: ${source.inputPath}`, ErrorCode.INVALID_INPUT);
+      throw new VixelError(`Input not found: ${source.inputPath}`, { code: ErrorCode.INVALID_INPUT });
     }
   }
 

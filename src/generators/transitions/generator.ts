@@ -32,10 +32,10 @@ export async function concatWithTransitions(
   const ffmpegPath = config.ffmpegPath ?? 'ffmpeg';
 
   if (sources.length < 2) {
-    throw new VixelError('concatWithTransitions requires at least 2 clips', ErrorCode.INVALID_CONFIG);
+    throw new VixelError('concatWithTransitions requires at least 2 clips', { code: ErrorCode.INVALID_CONFIG });
   }
   if (sources.some((s) => !s.duration || s.duration <= 0)) {
-    throw new VixelError('every clip needs a positive `duration` to compute xfade offsets', ErrorCode.INVALID_CONFIG);
+    throw new VixelError('every clip needs a positive `duration` to compute xfade offsets', { code: ErrorCode.INVALID_CONFIG });
   }
 
   if (!config.dryRun) {
@@ -43,7 +43,7 @@ export async function concatWithTransitions(
       try {
         await fs.access(s.inputPath);
       } catch {
-        throw new VixelError(`Input not found: ${s.inputPath}`, ErrorCode.INVALID_INPUT);
+        throw new VixelError(`Input not found: ${s.inputPath}`, { code: ErrorCode.INVALID_INPUT });
       }
     }
   }

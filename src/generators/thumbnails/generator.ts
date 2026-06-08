@@ -77,12 +77,11 @@ export async function extractThumbnail(
 
   // Validate timestamp
   if (timestamp < 0) {
-    throw new FFmpegError('Invalid timestamp: must be non-negative', { timestamp });
+    throw new FFmpegError('Invalid timestamp: must be non-negative', { context: { timestamp } });
   }
   if (timestamp > source.duration) {
     throw new FFmpegError('Timestamp exceeds video duration', {
-      timestamp,
-      duration: source.duration,
+      context: { timestamp, duration: source.duration },
     });
   }
 
@@ -250,7 +249,7 @@ async function extractSmartThumbnail(
   }
 
   if (candidates.length === 0) {
-    throw new FFmpegError('Failed to extract any candidate thumbnails', { source });
+    throw new FFmpegError('Failed to extract any candidate thumbnails', { context: { source } });
   }
 
   // Select best candidate (largest file = most detail)

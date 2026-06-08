@@ -36,14 +36,14 @@ export async function overlay(
   const blend: OverlayBlend = config.blend ?? (DEFAULT_BLEND as OverlayBlend);
 
   if (!config.overlayPath) {
-    throw new VixelError('overlay requires `overlayPath`', ErrorCode.INVALID_CONFIG);
+    throw new VixelError('overlay requires `overlayPath`', { code: ErrorCode.INVALID_CONFIG });
   }
   if (!config.dryRun) {
     for (const p of [source.inputPath, config.overlayPath]) {
       try {
         await fs.access(p);
       } catch {
-        throw new VixelError(`Input not found: ${p}`, ErrorCode.INVALID_INPUT);
+        throw new VixelError(`Input not found: ${p}`, { code: ErrorCode.INVALID_INPUT });
       }
     }
   }

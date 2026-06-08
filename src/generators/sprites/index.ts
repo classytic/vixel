@@ -5,7 +5,7 @@
  *
  * @example
  * ```typescript
- * import { generateSprites } from '@classytic/hls-processor';
+ * import { generateSprites } from '@classytic/vixel';
  *
  * const result = await generateSprites(
  *   { inputPath: './video.mp4', duration: 120 },

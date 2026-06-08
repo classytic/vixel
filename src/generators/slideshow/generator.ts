@@ -40,7 +40,7 @@ export async function slideshow(
 ): Promise<SlideshowResult> {
   const startTime = Date.now();
   if (slides.length === 0) {
-    throw new VixelError('slideshow requires at least one slide', ErrorCode.INVALID_CONFIG);
+    throw new VixelError('slideshow requires at least one slide', { code: ErrorCode.INVALID_CONFIG });
   }
 
   const durationPer = config.durationPer ?? 4;

@@ -91,12 +91,12 @@ export async function generateGif(
   // Validate time range
   const duration = timeRange.end - timeRange.start;
   if (duration <= 0) {
-    throw new FFmpegError('Invalid time range: end must be greater than start', { timeRange });
+    throw new FFmpegError('Invalid time range: end must be greater than start', { context: { timeRange } });
   }
   if (duration > MAX_GIF_DURATION) {
     throw new FFmpegError(
       `GIF duration exceeds maximum (${MAX_GIF_DURATION}s). Consider using shorter clips.`,
-      { duration, max: MAX_GIF_DURATION }
+      { context: { duration, max: MAX_GIF_DURATION } }
     );
   }
 

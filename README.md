@@ -1,19 +1,42 @@
 # Vixel
 
-> **AI-powered video processing engine** - Minimal, extensible, future-proof.
+> **Composable FFmpeg primitives for AI/agentic video** — typed, dry-runnable, tree-shakeable.
 
-Production-ready HLS streaming with **10-20x codec copy optimization**. Built for AI agents and developers who need full control.
+Bring a `Source`, compose a video. Vixel is a clean primitive engine for agents
+and developers who need full control: a declarative `compose()` renderer,
+bring-your-own-style animated captions, editor/HLS profile builders, and ~24
+single-op generators — each importable from its own subpath so the package
+stays lean.
+
+## Subpaths
+
+Import only what you need; everything is tree-shakeable and ESM-only.
+
+| Subpath | What's in it |
+| --- | --- |
+| `@classytic/vixel` | `Source` + ingest, dimensions, typed errors, every primitive re-exported |
+| `@classytic/vixel/compose` | **`compose()`** — declarative multi-track renderer (the MCP surface) |
+| `@classytic/vixel/captions` | `burnCaptions` / `buildAss` — BYO-styled animated captions (CapCut modes) |
+| `@classytic/vixel/profiles` | `editorProxy` · `editorPackage` · `hlsLadder` |
+| `@classytic/vixel/generators` | ~24 single-op transforms (trim, kenBurns, reframe, glow, …) |
+| `@classytic/vixel/utils` | `Logger`, time formatting helpers |
 
 ## Features
 
+- ✅ **Declarative compose** — one `VixelSpec` → one `filter_complex`: clips +
+  transitions, ducked audio bed, image/GIF + BYO-text overlays, ken-burns
+- ✅ **BYO-style captions** — libass/ASS with your own `TextStyle`; `karaoke`,
+  `pop`, `word-by-word`, `highlight`, `highlight-box` (CapCut active-word)
+- ✅ **`Source` ingest** — probed file/buffer/remote handle, SSRF-guarded fetch
+- ✅ **Profiles** — editor proxy (scrub-accurate), editor package, HLS ladder
 - ✅ **Fluent Pipeline** — chain trim → caption → reframe → mix → fade → … with auto temp-file cleanup
 - ✅ **HLS Streaming** — codec copy optimization (10-20x faster), parallel variant encoding
-- ✅ **22 Generators** — GIF, thumbnails, sprites, trim, concat, speed, compress, watermark, crop, audio, convert, audio-mix+ducking, caption burn-in, xfade transitions, reframe, fade, frame-extract, **Ken Burns, slideshow, color/LUT, loudness (LUFS)**
+- ✅ **~24 Generators** — GIF, thumbnails, sprites, trim, concat, speed, compress, watermark, crop, audio, convert, audio-mix+ducking, caption burn-in, xfade, reframe, fade, frame-extract, **Ken Burns, slideshow, color/LUT, loudness (LUFS)**
 - ✅ **Cancellable** — `AbortSignal` on every operation
 - ✅ **Debuggable** — dry-run + exact ffmpeg command capture
 - ✅ **Building Blocks** — `applyFFmpegFilter()` for any FFmpeg operation
-- ✅ **Typed Errors** — `tryCatch()` wrapper, error codes, type guards
-- ✅ **Minimal** — ~110 KB bundle, tree-shakeable, ESM-only
+- ✅ **Typed Errors** — `VixelError`, `tryCatch()` wrapper, error codes, type guards
+- ✅ **Minimal** — tree-shakeable, ESM-only, zero runtime deps (peer: fluent-ffmpeg, @aws-sdk/client-s3)
 
 ## Requirements
 
@@ -49,7 +72,54 @@ ffprobe -version
 npm install @classytic/vixel
 ```
 
-## Quick Start
+## Quick Start — compose a video from one spec
+
+`compose()` is the headline primitive: a declarative `VixelSpec` becomes a
+single `filter_complex` render. Video clips with transitions, a ducked music
+bed, and image/text overlays — in one call.
+
+```typescript
+import { compose } from '@classytic/vixel/compose';
+
+await compose(
+  {
+    version: 1,
+    output: { width: 1080, height: 1920, fps: 30 },
+    tracks: [
+      {
+        type: 'video',
+        clips: [
+          { source: 'a.mp4', duration: 3,
+            transition: { type: 'dissolve', duration: 0.5 },
+            animation: { preset: 'kenBurns', direction: 'in' } },
+          { source: 'b.mp4', duration: 3 },
+        ],
+      },
+      { type: 'audio', items: [{ source: 'music.mp3', role: 'music', duck: { amount: -12 } }] },
+      {
+        type: 'overlay',
+        items: [
+          { kind: 'image', source: 'logo.png', at: 0, duration: 3, position: 'top-right', width: 0.2 },
+          { kind: 'text', at: 0, duration: 3, text: 'hi there',
+            style: { animation: 'highlight', highlightColor: '#39FF14' } },
+        ],
+      },
+    ],
+  },
+  'out.mp4',
+);
+```
+
+Pass `{ dryRun: true, onCommand: (c) => … }` to inspect the exact ffmpeg
+invocation without rendering.
+
+> **v1 limits** (rejected loudly — never silently mis-rendered): mixed
+> hard-cut + crossfade in one track, more than one audio bed, `fit: cover`, and
+> overlay `slide`/`pop` variants.
+
+### HLS streaming
+
+`HLSProcessor` is a **named** export (it was the default before 0.3.0):
 
 ```typescript
 import { HLSProcessor } from '@classytic/vixel';
@@ -59,11 +129,7 @@ const processor = new HLSProcessor({
     { name: '720p', height: 720, videoBitrate: 2800, audioBitrate: 128 },
     { name: '480p', height: 480, videoBitrate: 1400, audioBitrate: 128 },
   ],
-  ffmpeg: {
-    ffmpegPath: 'ffmpeg',
-    ffprobePath: 'ffprobe',
-    timeout: 60 * 60 * 1000, // 60 minutes (default: 10 min)
-  },
+  ffmpeg: { ffmpegPath: 'ffmpeg', ffprobePath: 'ffprobe', timeout: 60 * 60 * 1000 },
 });
 
 const result = await processor.process({
@@ -126,6 +192,74 @@ await compressVideo(source, './out.mp4', {
   signal: ac.signal,
   onCommand: (cmd) => console.log(cmd.command), // audit the exact command
 });
+```
+
+## Captions (bring your own style)
+
+`@classytic/vixel/captions` burns animated, word-timed captions via libass/ASS.
+You bring a `TextStyle` (font, fill, stroke, highlight, shadow) and pick an
+animation mode — or start from a preset and override.
+
+```typescript
+import { Source } from '@classytic/vixel';
+import { burnCaptions } from '@classytic/vixel/captions';
+
+const src = await Source.fromFile('in.mp4');
+await burnCaptions(
+  src,
+  [
+    { text: 'made with vixel', startMs: 0, endMs: 1600, words: [
+      { text: 'made', startMs: 0,   endMs: 400 },
+      { text: 'with', startMs: 400, endMs: 800 },
+      { text: 'vixel', startMs: 800, endMs: 1600 },
+    ] },
+  ],
+  'out.mp4',
+  {
+    preset: 'active-word',                  // tiktok-bold | minimal | karaoke-highlight | word-focus | active-word | boxed
+    style: { highlightColor: '#39FF14' },   // ...overridden field-by-field with your own TextStyle
+  },
+);
+```
+
+**Animation modes:** `none` · `fade` · `karaoke` · `pop` · `word-by-word` ·
+`highlight` · `highlight-box` (CapCut-style active-word emphasis). All accept a
+fully custom `TextStyle`, so hosts can expose stroke/font/color to end users.
+
+## Profiles
+
+`@classytic/vixel/profiles` are opinionated, single-call builders for the common
+shapes an editor or streaming host needs.
+
+```typescript
+import { Source } from '@classytic/vixel';
+import { editorProxy, editorPackage, hlsLadder } from '@classytic/vixel/profiles';
+
+const src = await Source.fromFile('master.mov'); // any VideoSource: { inputPath, duration, width?, height? }
+
+// Scrub-accurate H.264 proxy: faststart, fixed GOP, forced keyframes, 1080p cap
+await editorProxy(src, 'proxy.mp4');
+
+// Proxy + poster frame + sprite sheet in one call
+const pkg = await editorPackage(src, './out');
+
+// No-upscale adaptive HLS ladder sized to the source
+await hlsLadder(src, './hls');
+```
+
+## Source & ingest
+
+`Source` is a probed handle over a file, buffer, or remote URL. Remote ingest is
+byte-capped and SSRF-guarded (private/reserved IPv4+IPv6, redirect
+re-validation, userinfo stripping).
+
+```typescript
+import { Source } from '@classytic/vixel';
+
+const src = await Source.fromFile('clip.mp4');
+console.log(src.width, src.height, src.duration, src.hasAudio);
+
+const remote = await Source.fromUrl('https://example.com/clip.mp4'); // guarded fetch + probe
 ```
 
 ## Post-production primitives

@@ -1,7 +1,7 @@
 {
   "name": "@classytic/vixel",
-  "version": "0.2.0",
-  "description": "Video processing engine - HLS streaming, effects, transformations. Minimal, extensible, future-proof.",
+  "version": "0.3.0",
+  "description": "Composable FFmpeg primitives for AI/agentic video — typed, dry-runnable, tree-shakeable. Source, captions, profiles, and a declarative compose renderer.",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -16,6 +16,18 @@
     "./utils": {
       "types": "./dist/utils/index.d.ts",
       "import": "./dist/utils/index.js"
+    },
+    "./profiles": {
+      "types": "./dist/profiles/index.d.ts",
+      "import": "./dist/profiles/index.js"
+    },
+    "./captions": {
+      "types": "./dist/captions/index.d.ts",
+      "import": "./dist/captions/index.js"
+    },
+    "./compose": {
+      "types": "./dist/compose/index.d.ts",
+      "import": "./dist/compose/index.js"
     }
   },
   "files": [

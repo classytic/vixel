@@ -14,7 +14,7 @@ import type {
   FeatureFlags,
   QualityVariant,
 } from './types/index.js';
-import { HLSProcessorError } from './types/index.js';
+import { HLSProcessorError, ErrorCode } from './errors.js';
 import { VariantEncoder, type EncodeOptions } from './encoding/variant-encoder.js';
 import { probeVideo } from './core/probe.js';
 import { generateSprites } from './generators/sprites/generator.js';
@@ -109,7 +109,7 @@ export class HLSProcessor {
     if (!config.variants || config.variants.length === 0) {
       throw new HLSProcessorError(
         'At least one variant is required',
-        'INVALID_CONFIG'
+        { code: ErrorCode.INVALID_CONFIG }
       );
     }
 
@@ -119,7 +119,7 @@ export class HLSProcessor {
       if (variantNames.has(variant.name)) {
         throw new HLSProcessorError(
           `Duplicate variant name: "${variant.name}". Each variant must have a unique name.`,
-          'INVALID_VARIANT'
+          { code: ErrorCode.INVALID_VARIANT }
         );
       }
       variantNames.add(variant.name);
@@ -130,14 +130,14 @@ export class HLSProcessor {
       if (!variant.name || variant.name.trim() === '') {
         throw new HLSProcessorError(
           'Variant name is required',
-          'INVALID_VARIANT'
+          { code: ErrorCode.INVALID_VARIANT }
         );
       }
 
       if (variant.height <= 0) {
         throw new HLSProcessorError(
           `Invalid variant height: ${variant.height}. Height must be positive`,
-          'INVALID_VARIANT'
+          { code: ErrorCode.INVALID_VARIANT }
         );
       }
 
@@ -146,7 +146,7 @@ export class HLSProcessor {
         if (variant.segmentDuration <= 0 || variant.segmentDuration > 30) {
           throw new HLSProcessorError(
             `Invalid segment duration: ${variant.segmentDuration}. Must be between 1-30 seconds`,
-            'INVALID_VARIANT'
+            { code: ErrorCode.INVALID_VARIANT }
           );
         }
       }
@@ -174,14 +174,14 @@ export class HLSProcessor {
           throw new HLSProcessorError(
             `Invalid variant videoBitrate: ${variant.videoBitrate}. ` +
               `Bitrate must be positive for re-encoding mode (encodingMode='reencode').`,
-            'INVALID_VARIANT'
+            { code: ErrorCode.INVALID_VARIANT }
           );
         }
         if (variant.audioBitrate <= 0) {
           throw new HLSProcessorError(
             `Invalid variant audioBitrate: ${variant.audioBitrate}. ` +
               `Bitrate must be positive for re-encoding mode.`,
-            'INVALID_VARIANT'
+            { code: ErrorCode.INVALID_VARIANT }
           );
         }
       } else {
@@ -192,7 +192,7 @@ export class HLSProcessor {
             throw new HLSProcessorError(
               `Variant "${variant.name}": Zero bitrates require codec copy to be enabled. ` +
                 `Either set ffmpeg.codecCopy.enabled=true or use positive bitrates.`,
-              'INVALID_VARIANT'
+              { code: ErrorCode.INVALID_VARIANT }
             );
           }
           this.logger.info(
@@ -203,7 +203,7 @@ export class HLSProcessor {
           if (variant.videoBitrate < 0 || variant.audioBitrate < 0) {
             throw new HLSProcessorError(
               `Invalid bitrates for variant "${variant.name}". Bitrates cannot be negative.`,
-              'INVALID_VARIANT'
+              { code: ErrorCode.INVALID_VARIANT }
             );
           }
         }
@@ -214,14 +214,14 @@ export class HLSProcessor {
     if (!config.ffmpeg.ffmpegPath || config.ffmpeg.ffmpegPath.trim() === '') {
       throw new HLSProcessorError(
         'ffmpegPath cannot be empty',
-        'INVALID_CONFIG'
+        { code: ErrorCode.INVALID_CONFIG }
       );
     }
 
     if (!config.ffmpeg.ffprobePath || config.ffmpeg.ffprobePath.trim() === '') {
       throw new HLSProcessorError(
         'ffprobePath cannot be empty',
-        'INVALID_CONFIG'
+        { code: ErrorCode.INVALID_CONFIG }
       );
     }
   }
@@ -365,8 +365,7 @@ export class HLSProcessor {
     } catch (error) {
       throw new HLSProcessorError(
         `HLS processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        'PROCESSING_FAILED',
-        error
+        { code: ErrorCode.PROCESSING_FAILED, cause: error }
       );
     }
   }
@@ -380,7 +379,7 @@ export class HLSProcessor {
     } catch {
       throw new HLSProcessorError(
         `Input file not found: ${inputPath}`,
-        'INPUT_NOT_FOUND'
+        { code: ErrorCode.INPUT_NOT_FOUND }
       );
     }
   }

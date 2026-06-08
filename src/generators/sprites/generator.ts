@@ -78,7 +78,8 @@ export async function generateSprites(
     console.log(`[Sprites]   Layout: ${columns} columns`);
   }
 
-  await fs.mkdir(outputDir, { recursive: true });
+  // Dry-run must not touch disk — the dir is only created for a real run.
+  if (!dryRun) await fs.mkdir(outputDir, { recursive: true });
 
   const thumbnailCount = Math.floor(source.duration / interval);
   const rows = Math.ceil(thumbnailCount / columns);
@@ -94,7 +95,7 @@ export async function generateSprites(
   }
 
   const thumbnailsDir = join(outputDir, 'temp-thumbnails');
-  await fs.mkdir(thumbnailsDir, { recursive: true });
+  if (!dryRun) await fs.mkdir(thumbnailsDir, { recursive: true });
 
   try {
     // Step 1: Extract individual thumbnails
@@ -114,8 +115,8 @@ export async function generateSprites(
     });
 
     // Dry-run: phase 2 reads phase-1 outputs which don't exist — return the plan.
+    // (No dirs were created in dry-run, so nothing to clean up.)
     if (dryRun) {
-      await fs.rm(thumbnailsDir, { recursive: true, force: true }).catch(() => {});
       return {
         imagePath: join(outputDir, `sprites.${format === 'png' ? 'png' : 'jpg'}`),
         vttPath: join(outputDir, 'sprites.vtt'),
@@ -238,7 +239,7 @@ async function createSpriteSheet(options: SpriteSheetOptions): Promise<void> {
     .slice(0, thumbnailCount);
 
   if (thumbnailFiles.length === 0) {
-    throw new FFmpegError('No thumbnails found for sprite sheet creation', { thumbnailsDir });
+    throw new FFmpegError('No thumbnails found for sprite sheet creation', { context: { thumbnailsDir } });
   }
 
   const concatFile = join(thumbnailsDir, 'concat.txt');

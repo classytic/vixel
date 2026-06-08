@@ -5,7 +5,7 @@
  *
  * @example
  * ```typescript
- * import { generateChapters, generateSmartChapters } from '@classytic/hls-processor';
+ * import { generateChapters, generateSmartChapters } from '@classytic/vixel';
  *
  * // Auto-generate chapters
  * const result = await generateChapters(

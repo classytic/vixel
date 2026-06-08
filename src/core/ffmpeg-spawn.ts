@@ -13,7 +13,7 @@
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
-import { AbortError, FFmpegError, ErrorCode } from '../errors.js';
+import { AbortError, FFmpegError } from '../errors.js';
 import { DEFAULT_FFMPEG_TIMEOUT } from '../constants.js';
 
 export interface SpawnFFmpegProgress {
@@ -101,7 +101,7 @@ export function spawnFFmpeg(
 
     // Already-aborted fast path.
     if (signal?.aborted) {
-      reject(new AbortError('FFmpeg aborted before start', { args }));
+      reject(new AbortError('FFmpeg aborted before start', { context: { args } }));
       return;
     }
 
@@ -127,7 +127,7 @@ export function spawnFFmpeg(
       settled = true;
       cleanup();
       killGracefully();
-      reject(new AbortError('FFmpeg aborted', { args }));
+      reject(new AbortError('FFmpeg aborted', { context: { args } }));
     };
 
     const timer = setTimeout(() => {
@@ -135,7 +135,7 @@ export function spawnFFmpeg(
       settled = true;
       cleanup();
       killGracefully();
-      reject(new FFmpegError(`FFmpeg timed out after ${timeout}ms`, { args }, ErrorCode.FFMPEG_TIMEOUT));
+      reject(FFmpegError.timeout(timeout, { args }));
     }, timeout);
 
     if (signal) signal.addEventListener('abort', onAbort, { once: true });
@@ -166,7 +166,7 @@ export function spawnFFmpeg(
       settled = true;
       cleanup();
       if (code !== 0) {
-        reject(new FFmpegError(`FFmpeg failed (exit ${code})`, stderr.slice(-500), ErrorCode.FFMPEG_FAILED));
+        reject(FFmpegError.failed(code, stderr.slice(-500), { args }));
         return;
       }
       resolve();
@@ -176,7 +176,7 @@ export function spawnFFmpeg(
       if (settled) return;
       settled = true;
       cleanup();
-      reject(new FFmpegError(`FFmpeg spawn error: ${err.message}`, err, ErrorCode.FFMPEG_SPAWN_ERROR));
+      reject(FFmpegError.spawn(err, { args }));
     });
   });
 }

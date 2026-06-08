@@ -4,6 +4,9 @@ export default defineConfig({
   entry: {
     index: 'src/index.ts',
     'generators/index': 'src/generators/index.ts',
+    'profiles/index': 'src/profiles/index.ts',
+    'captions/index': 'src/captions/index.ts',
+    'compose/index': 'src/compose/index.ts',
     'utils/index': 'src/utils/index.ts',
   },
   format: ['esm'],

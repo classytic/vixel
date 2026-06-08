@@ -5,7 +5,7 @@
  *
  * @example
  * ```typescript
- * import { gif, thumbnails, sprites, chapters } from '@classytic/hls-processor';
+ * import { gif, thumbnails, sprites, chapters } from '@classytic/vixel';
  *
  * // Generate GIF with two-pass optimization
  * const gifResult = await gif.generate(source, timeRange, outputDir, {

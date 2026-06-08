@@ -9,7 +9,7 @@
  *   extractThumbnail,
  *   extractThumbnails,
  *   estimateThumbnailSize
- * } from '@classytic/hls-processor/generators/thumbnails';
+ * } from '@classytic/vixel/generators/thumbnails';
  *
  * // Extract single thumbnail
  * const result = await extractThumbnail(

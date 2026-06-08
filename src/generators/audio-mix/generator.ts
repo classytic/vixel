@@ -41,7 +41,7 @@ export async function mixAudio(
   const { music, voiceover } = config;
 
   if (!music && !voiceover) {
-    throw new VixelError('mixAudio requires at least one of `music` or `voiceover`', ErrorCode.INVALID_CONFIG);
+    throw new VixelError('mixAudio requires at least one of `music` or `voiceover`', { code: ErrorCode.INVALID_CONFIG });
   }
 
   // Validate inputs exist (skipped in dry-run — no filesystem assumptions).
@@ -50,7 +50,7 @@ export async function mixAudio(
       try {
         await fs.access(p);
       } catch {
-        throw new VixelError(`Input not found: ${p}`, ErrorCode.INVALID_INPUT);
+        throw new VixelError(`Input not found: ${p}`, { code: ErrorCode.INVALID_INPUT });
       }
     }
   }

@@ -1,5 +1,5 @@
 /**
- * HLS Processor Constants
+ * Vixel Constants
  * ========================
  * Centralized configuration constants for the HLS processor.
  */

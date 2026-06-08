@@ -36,10 +36,10 @@ export async function parallax3d(
   const ffmpegPath = config.ffmpegPath ?? 'ffmpeg';
 
   if (!config.duration || config.duration <= 0) {
-    throw new VixelError('parallax3d requires a positive `duration`', ErrorCode.INVALID_CONFIG);
+    throw new VixelError('parallax3d requires a positive `duration`', { code: ErrorCode.INVALID_CONFIG });
   }
   if (!config.depthMap) {
-    throw new VixelError('parallax3d requires a `depthMap`', ErrorCode.INVALID_CONFIG);
+    throw new VixelError('parallax3d requires a `depthMap`', { code: ErrorCode.INVALID_CONFIG });
   }
 
   if (!config.dryRun) {
@@ -47,7 +47,7 @@ export async function parallax3d(
       try {
         await fs.access(p);
       } catch {
-        throw new VixelError(`Input not found: ${p}`, ErrorCode.INVALID_INPUT);
+        throw new VixelError(`Input not found: ${p}`, { code: ErrorCode.INVALID_INPUT });
       }
     }
   }

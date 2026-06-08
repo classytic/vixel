@@ -36,14 +36,14 @@ export async function reframe(
   const width = config.width ?? preset.width;
   const height = config.height ?? preset.height;
   if (width <= 0 || height <= 0) {
-    throw new VixelError('reframe target width/height must be positive', ErrorCode.INVALID_CONFIG);
+    throw new VixelError('reframe target width/height must be positive', { code: ErrorCode.INVALID_CONFIG });
   }
 
   if (!config.dryRun) {
     try {
       await fs.access(source.inputPath);
     } catch {
-      throw new VixelError(`Input not found: ${source.inputPath}`, ErrorCode.INVALID_INPUT);
+      throw new VixelError(`Input not found: ${source.inputPath}`, { code: ErrorCode.INVALID_INPUT });
     }
   }
 

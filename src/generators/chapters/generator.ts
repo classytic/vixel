@@ -85,7 +85,7 @@ export async function generateChapters(
   switch (mode) {
     case 'manual': {
       if (!manualChapters || manualChapters.length === 0) {
-        throw new VixelError('Manual mode requires chapters array', ErrorCode.INVALID_CONFIG);
+        throw new VixelError('Manual mode requires chapters array', { code: ErrorCode.INVALID_CONFIG });
       }
       chapters = validateAndSortChapters(manualChapters, source.duration, debug);
       break;
@@ -214,7 +214,7 @@ function validateAndSortChapters(
 
   for (const ch of sorted) {
     if (ch.startTime < 0) {
-      throw new VixelError(`Invalid chapter timestamp: ${ch.title} has negative startTime (${ch.startTime})`, ErrorCode.INVALID_INPUT);
+      throw new VixelError(`Invalid chapter timestamp: ${ch.title} has negative startTime (${ch.startTime})`, { code: ErrorCode.INVALID_INPUT });
     }
     if (ch.startTime > duration && debug) {
       console.warn(`[Chapters] Warning: Chapter "${ch.title}" starts after video ends (${ch.startTime}s > ${duration}s)`);

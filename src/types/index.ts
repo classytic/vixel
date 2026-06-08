@@ -1,5 +1,5 @@
 /**
- * @classytic/hls-processor - Type Definitions
+ * @classytic/vixel - Type Definitions
  * ===========================================
  * Modern TypeScript v5.7 types for HLS video processing
  */

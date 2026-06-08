@@ -5,7 +5,7 @@
  *
  * @example
  * ```typescript
- * import { generateGif, estimateGifSize } from '@classytic/hls-processor/generators/gif';
+ * import { generateGif, estimateGifSize } from '@classytic/vixel/generators/gif';
  *
  * // Generate high-quality GIF
  * const result = await generateGif(

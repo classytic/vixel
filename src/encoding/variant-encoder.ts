@@ -285,7 +285,7 @@ export class VariantEncoder {
         setTimeout(() => {
           if (!proc.killed) proc.kill('SIGKILL');
         }, 5000);
-        reject(new FFmpegError(`FFmpeg timeout after ${this.timeout}ms`, { args }));
+        reject(FFmpegError.timeout(this.timeout, { args }));
       }, this.timeout);
 
       proc.stderr?.on('data', (data: Buffer) => {
@@ -306,7 +306,7 @@ export class VariantEncoder {
       proc.on('close', async (code) => {
         clearTimeout(timer);
         if (code !== 0) {
-          return reject(new FFmpegError(`FFmpeg failed (exit ${code})`, stderr.slice(-500)));
+          return reject(FFmpegError.failed(code, stderr.slice(-500)));
         }
 
         const files = await fs.readdir(outputDir);
@@ -320,7 +320,7 @@ export class VariantEncoder {
 
       proc.on('error', (err) => {
         clearTimeout(timer);
-        reject(new FFmpegError(`FFmpeg error: ${err.message}`, err));
+        reject(FFmpegError.spawn(err));
       });
     });
   }
