@@ -24,6 +24,33 @@ describe('planTimeline', () => {
     expect(p.transitions[0]).toMatchObject({ type: 'dissolve', duration: 0.5, offset: 2.5 });
   });
 
+  it('without fps: no frame fields (legacy float behavior)', () => {
+    const p = planTimeline([clip(2)]);
+    expect(p.fps).toBeUndefined();
+    expect(p.totalFrames).toBeUndefined();
+    expect(p.clips[0]!.frameDuration).toBeUndefined();
+  });
+
+  describe('frame-exact (with fps)', () => {
+    it('snaps off-grid durations onto the frame grid and exposes frame positions', () => {
+      // 2.0207s @ 24fps = 48.49 frames → snaps to 48 frames = exactly 2.0s
+      const p = planTimeline([clip(2.0207, { type: 'dissolve', duration: 0.49 }), clip(2.0207)], 24);
+      expect(p.fps).toBe(24);
+      expect(p.clips[0]!.frameDuration).toBe(48);
+      expect(p.clips[0]!.duration).toBeCloseTo(2.0, 10); // snapped seconds agree with frames
+      // 0.49s @ 24 = 11.76 → 12 frames
+      expect(p.transitions[0]!.frameDuration).toBe(12);
+      expect(p.transitions[0]!.frameOffset).toBe(36); // (48 − 12) frames
+      expect(p.totalFrames).toBe(84); // 48 + 48 − 12
+    });
+
+    it('totalFrames is the exact zoom domain for a host timeline', () => {
+      const p = planTimeline([clip(1), clip(1), clip(1)], 30);
+      expect(p.totalFrames).toBe(90);
+      expect(p.clips.every((c) => c.frameDuration === 30)).toBe(true);
+    });
+  });
+
   it('three clips: offsets accumulate on the (overlapped) output timeline', () => {
     const p = planTimeline([
       clip(2, { type: 'fade', duration: 0.5 }),

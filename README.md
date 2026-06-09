@@ -16,6 +16,7 @@ Import only what you need; everything is tree-shakeable and ESM-only.
 | --- | --- |
 | `@classytic/vixel` | `Source` + ingest, dimensions, typed errors, every primitive re-exported |
 | `@classytic/vixel/compose` | **`compose()`** — declarative multi-track renderer (the MCP surface) |
+| `@classytic/vixel/compositing` | `chromaKey` · `blend` · `mask` — descriptor-backed `mixer2` primitives |
 | `@classytic/vixel/captions` | `burnCaptions` / `buildAss` — BYO-styled animated captions (CapCut modes) |
 | `@classytic/vixel/profiles` | `editorProxy` · `editorPackage` · `hlsLadder` |
 | `@classytic/vixel/generators` | ~24 single-op transforms (trim, kenBurns, reframe, glow, …) |
@@ -116,6 +117,13 @@ invocation without rendering.
 > **v1 limits** (rejected loudly — never silently mis-rendered): mixed
 > hard-cut + crossfade in one track, more than one audio bed, `fit: cover`, and
 > overlay `slide`/`pop` variants.
+
+**Transition presets** — a clip's `transition.type` accepts raw `xfade` names
+(`dissolve`, `wipeleft`, …) *and* CapCut-flavored presets from `TRANSITION_PRESETS`:
+`whip-pan` · `zoom-blur` · `blur` · `glitch` · `radial` · `ripple` · `squeeze` ·
+`iris`. The catalog is exported as **data** (`name → { xfade, defaultDuration }`)
+so an editor UI or browser preview can read the same names vixel renders from —
+no renderer import, spec stays intent-level.
 
 ### HLS streaming
 
@@ -225,6 +233,137 @@ await burnCaptions(
 **Animation modes:** `none` · `fade` · `karaoke` · `pop` · `word-by-word` ·
 `highlight` · `highlight-box` (CapCut-style active-word emphasis). All accept a
 fully custom `TextStyle`, so hosts can expose stroke/font/color to end users.
+
+## Motion dynamics
+
+CapCut-grade motion, as pure ffmpeg primitives. `speedRamp` gives variable speed
+with **optical-flow slow-motion** — buttery slow-mo (interpolated frames), not
+stuttered duplicates — driven by an intent-level segment list.
+
+```typescript
+import { Source, speedRamp } from '@classytic/vixel';
+
+const src = await Source.fromFile('jump.mp4'); // 6s
+await speedRamp(src, 'ramped.mp4', {
+  segments: [
+    { throughSec: 2, speed: 1 },    // run-up, real-time
+    { throughSec: 3, speed: 0.3 },  // slow-mo on the action (motion-interpolated)
+    { throughSec: 6, speed: 2 },    // fast landing
+  ],
+});
+// → result.plan maps source-time → output-time so your timeline stays in sync
+```
+
+**Keyframed overlay motion** — a sticker / lower-third can travel a path. The
+keyframe model (`[{ t, x, y, easing }]`) compiles to an ffmpeg `overlay=x/y`
+time-expression, and is the same data a host's keyframe-curve editor renders:
+
+```typescript
+import { compose } from '@classytic/vixel/compose';
+await compose({
+  version: 1, output: { width: 1080, height: 1920, fps: 30 },
+  tracks: [
+    { type: 'video', clips: [{ source: 'a.mp4', duration: 3 }] },
+    { type: 'overlay', items: [{
+      kind: 'image', source: 'sticker.png', at: 0, duration: 3, width: 0.15,
+      motion: [
+        { t: 0, x: 0.1, y: 0.1 },
+        { t: 1.5, x: 0.9, y: 0.3, easing: 'easeInOut' },
+        { t: 3, x: 0.5, y: 0.9, easing: 'easeOut' },
+      ],
+    }] },
+  ],
+}, 'out.mp4');
+```
+
+`motionEffect` adds the trending in-filter "energy" effects — all pure ffmpeg,
+no per-frame canvas pass:
+
+```typescript
+import { Source, motionEffect } from '@classytic/vixel';
+
+const src = await Source.fromFile('clip.mp4');
+await motionEffect(src, 'glitched.mp4', { effect: 'glitch', intensity: 0.7 });
+// effects: 'glitch' | 'shake' | 'rgb-split' | 'zoom-punch'
+```
+
+**Auto-edit on the beat.** `detectBeats` finds audio onsets (zero-dependency —
+ffmpeg decodes PCM, peak-picking is pure JS) and `beatSyncSpec` snaps clip cuts
+to them, emitting a `VixelSpec` you hand straight to `compose()`:
+
+```typescript
+import { detectBeats, beatSyncSpec } from '@classytic/vixel/compose';
+import { compose } from '@classytic/vixel/compose';
+
+const { beats } = await detectBeats({ inputPath: 'song.mp3', duration: 30 });
+const spec = beatSyncSpec({
+  sources: ['clip1.mp4', 'clip2.mp4', 'clip3.mp4'], // cycled across the beats
+  beats,
+  output: { width: 1080, height: 1920, fps: 30 },
+  audioSource: 'song.mp3', // dropped in as the music bed
+});
+await compose(spec, 'beat-cut.mp4');
+```
+
+## Compositing (the `mixer2` family)
+
+`@classytic/vixel/compositing` are the two-input compositing primitives —
+green-screen keying, blend modes, and shaped masks. Each ships a
+**machine-readable descriptor** (typed params + input arity) so an agent or an
+editor UI can enumerate it as data.
+
+```typescript
+import { Source } from '@classytic/vixel';
+import { chromaKey, blend, mask, COMPOSITING_DESCRIPTORS } from '@classytic/vixel/compositing';
+
+// green-screen the foreground over a background
+await chromaKey(await Source.fromFile('subject.mp4'), await Source.fromFile('bg.mp4'), 'out.mp4',
+  { color: '00FF00', similarity: 0.2 });
+
+// screen-blend two layers
+await blend(await Source.fromFile('a.mp4'), await Source.fromFile('b.mp4'), 'lightleak.mp4', { mode: 'screen' });
+
+// circular alpha cutout (round avatar / PiP) — outputs alpha
+await mask(await Source.fromFile('face.mp4'), 'avatar.mov', { shape: 'circle', feather: 0.06 });
+
+COMPOSITING_DESCRIPTORS; // → the catalog as data (id, arity, typed params) for hosts/agents
+```
+
+> **Design boundary** — vixel ships the compositing that's expressible as an
+> ffmpeg filter graph. Animated/roto mattes, arbitrary blend stacks, and nested
+> comps are **compositor-tier** and stay in the host editor. The full rationale
+> (grounded in OpenTimelineIO / MLT / OpenFX / frei0r / movis) is in
+> [DESIGN.md](DESIGN.md).
+
+## Building a UI editor on vixel
+
+vixel is the engine + the contract; the editor UI is yours. Three published
+pieces are all a Node.js editor needs — no engine internals, no hardcoding:
+
+```typescript
+import { planTimeline, formatTimecode } from '@classytic/vixel/compose';
+import { COMPOSITING_DESCRIPTORS } from '@classytic/vixel/compositing';
+
+// 1. The DOCUMENT your UI edits is the VixelSpec (drag clips, drop transitions).
+// 2. The frame-exact render model — drives a zoomable timeline + playhead:
+const plan = planTimeline(spec.tracks[0].clips, spec.output.fps);
+plan.totalFrames;                 // the zoom domain — multiply by pixels-per-frame
+plan.clips[0].frameDuration;      // exact clip widths on the ruler
+plan.transitions[0].frameOffset;  // exact transition markers
+formatTimecode(2.5, spec.output.fps); // "00:00:02:12" — ruler/playhead labels
+// 3. The PARAMS PANEL auto-builds from descriptors (typed, ranged, units):
+COMPOSITING_DESCRIPTORS;          // [{ id, arity, params:[{name,type,min,max,step,unit,…}] }]
+```
+
+Because the spec is intent-level and the plan is frame-exact, the same document
+an **agent** emits is the one a **human editor** zooms into — one source of
+truth, two authors. Rendering is always `compose(spec, out)`. The boundary (what
+the engine does vs. what your UI owns) is spelled out in [DESIGN.md](DESIGN.md).
+
+Saved projects stay loadable across versions via `migrateSpec(json)`, and a
+clip's `source` can be an `external` (proxy-swappable), `generator`, or `missing`
+(offline) reference — so an editor can save a project with unresolved media and
+reopen it later.
 
 ## Profiles
 

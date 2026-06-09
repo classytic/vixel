@@ -13,6 +13,7 @@ import * as root from '../src/index.js';
 import * as profiles from '../src/profiles/index.js';
 import * as captions from '../src/captions/index.js';
 import * as compose from '../src/compose/index.js';
+import * as compositing from '../src/compositing/index.js';
 import * as generators from '../src/generators/index.js';
 import * as utils from '../src/utils/index.js';
 
@@ -23,6 +24,7 @@ describe('public API surface (golden — update intentionally)', () => {
   it('@classytic/vixel/profiles', () => expect(keys(profiles)).toMatchSnapshot());
   it('@classytic/vixel/captions', () => expect(keys(captions)).toMatchSnapshot());
   it('@classytic/vixel/compose', () => expect(keys(compose)).toMatchSnapshot());
+  it('@classytic/vixel/compositing', () => expect(keys(compositing)).toMatchSnapshot());
   it('@classytic/vixel/generators', () => expect(keys(generators)).toMatchSnapshot());
   it('@classytic/vixel/utils', () => expect(keys(utils)).toMatchSnapshot());
 });
@@ -44,9 +46,14 @@ describe('load-bearing primitives are exported', () => {
       expect(compose).toHaveProperty(k);
     }
   });
+  it('compositing (mixer2 family + descriptor catalog)', () => {
+    for (const k of ['blend', 'chromaKey', 'mask', 'COMPOSITING_DESCRIPTORS']) {
+      expect(compositing).toHaveProperty(k);
+    }
+  });
 
   it('no export is undefined', () => {
-    for (const mod of [root, profiles, captions, compose, generators, utils]) {
+    for (const mod of [root, profiles, captions, compose, compositing, generators, utils]) {
       for (const [name, value] of Object.entries(mod)) {
         expect(value, name).not.toBeUndefined();
       }

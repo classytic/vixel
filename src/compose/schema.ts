@@ -23,6 +23,8 @@
  */
 
 import type { CaptionCue, TextStyle } from '../captions/types.js';
+import type { KeyframeEasing } from '../core/keyframe.js';
+import type { SourceRef } from '../core/media-reference.js';
 
 export type Easing =
   | 'linear'
@@ -49,7 +51,17 @@ export type TransitionType =
   | 'slideup'
   | 'slidedown'
   | 'zoomin'
-  | 'none';
+  | 'none'
+  // CapCut-flavored presets — friendly aliases resolved via TRANSITION_PRESETS
+  // (see ./transitions.ts). Intent-level; the xfade mapping stays internal.
+  | 'whip-pan'
+  | 'zoom-blur'
+  | 'blur'
+  | 'glitch'
+  | 'radial'
+  | 'ripple'
+  | 'squeeze'
+  | 'iris';
 
 export interface Transition {
   type: TransitionType;
@@ -77,7 +89,8 @@ export type Anchor =
 export type Fit = 'contain' | 'cover' | 'stretch';
 
 export interface Clip {
-  source: string;
+  /** Media: a path/URL string, or a typed {@link SourceRef} (external/generator/missing). */
+  source: SourceRef;
   /** Seconds into the source to start (default 0). */
   in?: number;
   /** Seconds into the source to stop (default = end). */
@@ -90,6 +103,8 @@ export interface Clip {
   animation?: ClipAnimation;
   /** Source-audio gain 0..1 (default 1). */
   volume?: number;
+  /** Carried through untouched — vendor/agent/editor extension data (ignored by render). */
+  metadata?: Record<string, unknown>;
 }
 
 export interface OverlayBase {
@@ -109,6 +124,8 @@ export interface OverlayBase {
   opacity?: number;
   in?: OverlayEnter;
   out?: OverlayExit;
+  /** Carried through untouched — vendor/agent/editor extension data (ignored by render). */
+  metadata?: Record<string, unknown>;
 }
 
 export interface TextOverlay extends OverlayBase {
@@ -120,14 +137,29 @@ export interface TextOverlay extends OverlayBase {
   cues?: CaptionCue[];
 }
 
+/**
+ * A position keyframe for an animated overlay (moving sticker / lower-third).
+ * `x`/`y` are normalized 0..1 (the overlay's CENTER); `t` is seconds relative to
+ * the overlay's `at`. Compiles to an ffmpeg `overlay=x/y` time-expression — the
+ * one motion attribute ffmpeg animates per-frame (see DESIGN.md, move #3).
+ */
+export interface PositionKeyframe {
+  t: number;
+  x: number;
+  y: number;
+  easing?: KeyframeEasing;
+}
+
 export interface ImageOverlay extends OverlayBase {
   kind: 'image';
-  /** Image, animated GIF/WebP, or video to composite. */
-  source: string;
+  /** Image, animated GIF/WebP, or video to composite (string or {@link SourceRef}). */
+  source: SourceRef;
   /** Width as a FRACTION of the canvas (0..1). Default 0.25. Height auto (aspect). */
   width?: number;
   /** Height as a fraction of the canvas (0..1). Omit to preserve aspect. */
   height?: number;
+  /** Keyframed motion path — overrides `position` when present (≥2 keyframes). */
+  motion?: PositionKeyframe[];
   blend?: 'normal' | 'screen' | 'multiply' | 'overlay';
 }
 
@@ -144,7 +176,8 @@ export interface DuckSpec {
 }
 
 export interface AudioItem {
-  source: string;
+  /** Audio media: a path/URL string, or a typed {@link SourceRef}. */
+  source: SourceRef;
   at?: number;
   in?: number;
   out?: number;
@@ -155,6 +188,8 @@ export interface AudioItem {
   duck?: DuckSpec;
   fadeIn?: number;
   fadeOut?: number;
+  /** Carried through untouched — vendor/agent/editor extension data (ignored by render). */
+  metadata?: Record<string, unknown>;
 }
 
 export interface VideoTrack {
@@ -182,6 +217,8 @@ export interface VixelSpec {
     background?: string;
   };
   tracks: Track[];
+  /** Carried through untouched — vendor/agent/editor extension data (ignored by render). */
+  metadata?: Record<string, unknown>;
 }
 
 /** Identity helper for authoring a spec with full type-checking. */

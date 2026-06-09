@@ -146,6 +146,18 @@ describe('buildComposeGraph — image/GIF overlays', () => {
     expect(g.filterComplex).toContain('fade=t=in:st=1:d=0.4:alpha=1');
     expect(g.filterComplex).toContain('fade=t=out:st=3.6:d=0.4:alpha=1'); // 1+3−0.4
   });
+
+  it('animates a keyframed motion path → quoted overlay x/y time-expressions', () => {
+    const g = withOverlay({
+      kind: 'image', source: 'sticker.png', at: 2, duration: 3,
+      motion: [{ t: 0, x: 0.1, y: 0.1 }, { t: 3, x: 0.8, y: 0.8, easing: 'easeOut' }],
+    });
+    // local time = (t − at); x/y compiled + quoted (commas inside the expr)
+    expect(g.filterComplex).toContain("overlay=x='(W*(");
+    expect(g.filterComplex).toContain('(t-2)'); // local time offset by `at`
+    expect(g.filterComplex).toContain("-(w/2)':y='(H*(");
+    expect(g.filterComplex).toContain('between(t,2,5)'); // still timed to its window
+  });
 });
 
 describe('buildComposeGraph — clip animation', () => {

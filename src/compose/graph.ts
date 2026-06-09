@@ -19,6 +19,9 @@
 import { ConfigError } from '../errors.js';
 import { escapeSubtitlePath } from '../generators/captions/constants.js';
 import { overlayXY, overlayWidthPx } from './layout.js';
+import { resolveXfadeName } from './transitions.js';
+import { compileScalarKeyframes } from '../core/keyframe.js';
+import { resolveToPath } from '../core/media-reference.js';
 import type { TimelinePlan } from './timeline.js';
 import type { AudioItem, ClipAnimation, ImageOverlay, VixelSpec } from './schema.js';
 
@@ -133,7 +136,7 @@ export function buildComposeGraph({ spec, plan, clipHasAudio, captionsAssPath }:
   const inputs: ComposeInput[] = plan.clips.map((c) => ({ source: c.source }));
   const bed = firstAudioItem(spec);
   const bedIndex = bed ? inputs.length : -1;
-  if (bed) inputs.push({ source: bed.source });
+  if (bed) inputs.push({ source: resolveToPath(bed.source) });
 
   const parts: string[] = [];
 
@@ -179,7 +182,7 @@ export function buildComposeGraph({ spec, plan, clipHasAudio, captionsAssPath }:
     for (let i = 1; i < n; i++) {
       const t = plan.transitions[i - 1]!;
       const out = i === n - 1 ? 'vout' : `vx${i}`;
-      const xf = t.type === 'none' ? 'fade' : t.type;
+      const xf = resolveXfadeName(t.type);
       parts.push(`[${prev}][v${i}]xfade=transition=${xf}:duration=${t.duration}:offset=${t.offset}[${out}]`);
       prev = out;
     }
@@ -244,7 +247,8 @@ export function buildComposeGraph({ spec, plan, clipHasAudio, captionsAssPath }:
   let curV = vLabel;
   overlays.forEach((ov, k) => {
     const idx = inputs.length;
-    inputs.push({ source: ov.source, ...(overlayInputOptions(ov.source) ? { options: overlayInputOptions(ov.source)! } : {}) });
+    const ovPath = resolveToPath(ov.source);
+    inputs.push({ source: ovPath, ...(overlayInputOptions(ovPath) ? { options: overlayInputOptions(ovPath)! } : {}) });
 
     const wpx = overlayWidthPx(W, ov.width, ov.scale);
     const hpx = ov.height !== undefined ? Math.round(ov.height * H) : -1;
@@ -262,10 +266,21 @@ export function buildComposeGraph({ spec, plan, clipHasAudio, captionsAssPath }:
       : '';
     parts.push(`[${idx}:v]scale=${wpx}:${hpx},setsar=1${alphaChain}[ov${k}]`);
 
-    const { x, y } = overlayXY(ov.position);
     const outL = `ovv${k}`;
+    let xy: string;
+    if (ov.motion && ov.motion.length >= 2) {
+      // Keyframed path: compile x/y to time-expressions (local time = t − at).
+      // Quote because the expressions contain (escaped) commas.
+      const localT = `(t-${ov.at})`;
+      const xExpr = compileScalarKeyframes(ov.motion.map((k) => ({ t: k.t, value: k.x, ...(k.easing ? { easing: k.easing } : {}) })), localT);
+      const yExpr = compileScalarKeyframes(ov.motion.map((k) => ({ t: k.t, value: k.y, ...(k.easing ? { easing: k.easing } : {}) })), localT);
+      xy = `x='(W*(${xExpr}))-(w/2)':y='(H*(${yExpr}))-(h/2)'`;
+    } else {
+      const { x, y } = overlayXY(ov.position);
+      xy = `x=${x}:y=${y}`;
+    }
     parts.push(
-      `[${curV}][ov${k}]overlay=x=${x}:y=${y}:enable='between(t,${ov.at},${ov.at + ov.duration})'[${outL}]`,
+      `[${curV}][ov${k}]overlay=${xy}:enable='between(t,${ov.at},${ov.at + ov.duration})'[${outL}]`,
     );
     curV = outL;
   });

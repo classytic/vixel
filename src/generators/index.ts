@@ -191,6 +191,37 @@ export type {
 } from './speed/index.js';
 
 // =============================================================================
+// Speed Ramp Generator (variable speed + optical-flow slow-mo)
+// =============================================================================
+
+export { generateSource, sourceDescriptor } from './source/index.js';
+export type { GenerateSourceConfig, GenerateSourceResult } from './source/index.js';
+
+export { speedRamp, buildSpeedRampFilter, validateSpeedRamp } from './speed-ramp/index.js';
+
+export type {
+  SpeedRampConfig,
+  SpeedRampResult,
+  SpeedRampSegment,
+  SpeedRampPlanSegment,
+} from './speed-ramp/index.js';
+
+// =============================================================================
+// Motion Effects Generator (glitch / shake / rgb-split / zoom-punch)
+// =============================================================================
+
+export {
+  motionEffect,
+  buildMotionEffectFilter,
+  buildGlitchFilter,
+  buildShakeFilter,
+  buildRgbSplitFilter,
+  buildZoomPunchFilter,
+} from './motion-effects/index.js';
+
+export type { MotionEffect, MotionEffectConfig, MotionEffectResult } from './motion-effects/index.js';
+
+// =============================================================================
 // Format Conversion Generator
 // =============================================================================
 

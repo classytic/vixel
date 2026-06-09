@@ -1,6 +1,6 @@
 {
   "name": "@classytic/vixel",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Composable FFmpeg primitives for AI/agentic video — typed, dry-runnable, tree-shakeable. Source, captions, profiles, and a declarative compose renderer.",
   "type": "module",
   "sideEffects": false,
@@ -28,13 +28,18 @@
     "./compose": {
       "types": "./dist/compose/index.d.ts",
       "import": "./dist/compose/index.js"
+    },
+    "./compositing": {
+      "types": "./dist/compositing/index.d.ts",
+      "import": "./dist/compositing/index.js"
     }
   },
   "files": [
     "dist",
     "README.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "DESIGN.md"
   ],
   "scripts": {
     "build": "tsup",

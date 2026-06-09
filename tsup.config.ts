@@ -7,6 +7,7 @@ export default defineConfig({
     'profiles/index': 'src/profiles/index.ts',
     'captions/index': 'src/captions/index.ts',
     'compose/index': 'src/compose/index.ts',
+    'compositing/index': 'src/compositing/index.ts',
     'utils/index': 'src/utils/index.ts',
   },
   format: ['esm'],

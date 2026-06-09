@@ -242,6 +242,20 @@ export {
   concatenateVideos,
   // Speed Adjustment Generator
   changeSpeed,
+  // Generator Source (synthetic source-arity primitive)
+  generateSource,
+  sourceDescriptor,
+  // Speed Ramp Generator (variable speed + optical-flow slow-mo)
+  speedRamp,
+  buildSpeedRampFilter,
+  validateSpeedRamp,
+  // Motion Effects Generator (glitch / shake / rgb-split / zoom-punch)
+  motionEffect,
+  buildMotionEffectFilter,
+  buildGlitchFilter,
+  buildShakeFilter,
+  buildRgbSplitFilter,
+  buildZoomPunchFilter,
   // Format Conversion Generator
   convertFormat,
   // Audio Mix Generator (voiceover + music ducking)
@@ -349,6 +363,18 @@ export type {
   // Speed Adjustment types
   SpeedConfig,
   SpeedResult,
+  // Generator Source types
+  GenerateSourceConfig,
+  GenerateSourceResult,
+  // Speed Ramp types
+  SpeedRampConfig,
+  SpeedRampResult,
+  SpeedRampSegment,
+  SpeedRampPlanSegment,
+  // Motion Effects types
+  MotionEffect,
+  MotionEffectConfig,
+  MotionEffectResult,
   // Format Conversion types
   ConvertConfig,
   ConvertResult,
@@ -420,6 +446,76 @@ export {
   type EncodeOptions,
   type EncodeResult,
 } from './encoding/variant-encoder.js';
+
+// =============================================================================
+// Frame-exact time (seconds at the edge, frames inside — see DESIGN.md)
+// =============================================================================
+
+export { toFrames, toSeconds, snapToFrame, formatTimecode, parseTimecode } from './core/time.js';
+export { compileScalarKeyframes } from './core/keyframe.js';
+export type { Keyframe, KeyframeEasing } from './core/keyframe.js';
+
+// =============================================================================
+// Schema durability — versioning + media references (see DESIGN.md)
+// =============================================================================
+
+export { CURRENT_SPEC_VERSION, migrateSpec, SPEC_UPGRADES } from './core/schema-version.js';
+export type { SpecUpgrade } from './core/schema-version.js';
+export {
+  isMediaReference,
+  resolveToPath,
+  lavfiDescriptor,
+  mediaInputArgs,
+} from './core/media-reference.js';
+export type {
+  MediaReference,
+  SourceRef,
+  GeneratorKind,
+  ExternalReference,
+  GeneratorReference,
+  MissingReference,
+} from './core/media-reference.js';
+
+// =============================================================================
+// Primitive descriptor contract (machine-readable — see DESIGN.md)
+// =============================================================================
+
+export { clampParam } from './core/descriptor.js';
+export type {
+  ParamType,
+  VixelParam,
+  PrimitiveArity,
+  PrimitiveInput,
+  VixelPrimitiveDescriptor,
+} from './core/descriptor.js';
+
+// =============================================================================
+// Compositing primitives (the mixer2 family — also at @classytic/vixel/compositing)
+// =============================================================================
+
+export {
+  blend,
+  buildBlendFilter,
+  blendDescriptor,
+  BLEND_MODES,
+  chromaKey,
+  buildChromaKeyGraph,
+  chromaKeyDescriptor,
+  mask,
+  buildMaskFilter,
+  maskDescriptor,
+  COMPOSITING_DESCRIPTORS,
+} from './compositing/index.js';
+export type {
+  BlendMode,
+  BlendConfig,
+  BlendResult,
+  ChromaKeyConfig,
+  ChromaKeyResult,
+  MaskShape,
+  MaskConfig,
+  MaskResult,
+} from './compositing/index.js';
 
 // =============================================================================
 // Utilities

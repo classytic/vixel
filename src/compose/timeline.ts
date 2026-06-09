@@ -13,6 +13,8 @@
  */
 
 import { ConfigError } from '../errors.js';
+import { snapToFrame, toFrames } from '../core/time.js';
+import { resolveToPath } from '../core/media-reference.js';
 import type { Clip, TransitionType } from './schema.js';
 
 export interface PlannedClip {
@@ -25,6 +27,10 @@ export interface PlannedClip {
   readonly duration: number;
   /** Source-audio gain 0..1. */
   readonly volume: number;
+  /** Frame-exact `duration` (present when the plan was built with an fps). */
+  readonly frameDuration?: number;
+  /** Frame-exact `trimStart` (present when the plan was built with an fps). */
+  readonly frameTrimStart?: number;
 }
 
 export interface PlannedTransition {
@@ -33,6 +39,10 @@ export interface PlannedTransition {
   readonly duration: number;
   /** Absolute offset on the output timeline where the xfade begins. */
   readonly offset: number;
+  /** Frame-exact `duration` (present with fps). */
+  readonly frameDuration?: number;
+  /** Frame-exact `offset` (present with fps). */
+  readonly frameOffset?: number;
 }
 
 export interface TimelinePlan {
@@ -43,6 +53,10 @@ export interface TimelinePlan {
   readonly total: number;
   /** True when at least one gap uses a real (duration > 0) transition. */
   readonly hasTransitions: boolean;
+  /** Output frame rate the plan was snapped to (present with fps). */
+  readonly fps?: number;
+  /** Total output length in whole frames (present with fps) — the zoom domain for a UI. */
+  readonly totalFrames?: number;
 }
 
 /** Resolve a clip's shown duration from `duration` or `out − in`. */
@@ -54,19 +68,33 @@ function clipDuration(clip: Clip): number {
   });
 }
 
-/** Plan a video track into trims + xfade offsets (the offset-math source of truth). */
-export function planTimeline(clips: Clip[]): TimelinePlan {
+/**
+ * Plan a video track into trims + xfade offsets (the offset-math source of truth).
+ *
+ * Pass `fps` to make the plan **frame-exact**: every boundary is snapped onto the
+ * output frame grid (so cuts land precisely on a frame — no float drift), and the
+ * plan carries `frame*` positions + `totalFrames` for a host's zoomable timeline.
+ * Omitting `fps` keeps the legacy float-seconds behavior.
+ */
+export function planTimeline(clips: Clip[], fps?: number): TimelinePlan {
   if (clips.length === 0) {
     throw new ConfigError('a video track needs at least one clip');
   }
+  const snap = fps ? (s: number) => snapToFrame(s, fps) : (s: number) => s;
+  const frames = fps ? (s: number) => toFrames(s, fps) : undefined;
 
-  const planned: PlannedClip[] = clips.map((clip, i) => ({
-    index: i,
-    source: clip.source,
-    trimStart: clip.in ?? 0,
-    duration: clipDuration(clip),
-    volume: clip.volume ?? 1,
-  }));
+  const planned: PlannedClip[] = clips.map((clip, i) => {
+    const trimStart = snap(clip.in ?? 0);
+    const duration = snap(clipDuration(clip));
+    return {
+      index: i,
+      source: resolveToPath(clip.source), // string/external → path; missing/generator → throws
+      trimStart,
+      duration,
+      volume: clip.volume ?? 1,
+      ...(frames ? { frameDuration: frames(duration), frameTrimStart: frames(trimStart) } : {}),
+    };
+  });
 
   const transitions: PlannedTransition[] = [];
   let runningEnd = planned[0]!.duration; // output position where the chain currently ends
@@ -74,7 +102,7 @@ export function planTimeline(clips: Clip[]): TimelinePlan {
 
   for (let i = 1; i < clips.length; i++) {
     const t = clips[i - 1]!.transition; // transition INTO clip i
-    const dur = t && t.type !== 'none' ? Math.max(0, t.duration) : 0;
+    const dur = t && t.type !== 'none' ? snap(Math.max(0, t.duration)) : 0;
     if (dur > 0) {
       hasTransitions = true;
       // xfade needs both inputs strictly longer than the overlap.
@@ -86,9 +114,20 @@ export function planTimeline(clips: Clip[]): TimelinePlan {
       }
     }
     const offset = Math.max(0, runningEnd - dur);
-    transitions.push({ type: t?.type ?? 'none', duration: dur, offset });
+    transitions.push({
+      type: t?.type ?? 'none',
+      duration: dur,
+      offset,
+      ...(frames ? { frameDuration: frames(dur), frameOffset: frames(offset) } : {}),
+    });
     runningEnd = runningEnd + planned[i]!.duration - dur;
   }
 
-  return { clips: planned, transitions, total: runningEnd, hasTransitions };
+  return {
+    clips: planned,
+    transitions,
+    total: runningEnd,
+    hasTransitions,
+    ...(fps ? { fps, totalFrames: frames!(runningEnd) } : {}),
+  };
 }

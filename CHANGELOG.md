@@ -46,6 +46,97 @@ declarative `compose()` renderer that turns one spec into one `filter_complex`.
   hard-cut + crossfade in one track, more than one audio bed, `fit: cover`,
   and overlay `slide`/`pop` variants.
 
+### Added — motion dynamics (CapCut-grade, pure ffmpeg)
+
+- **`speedRamp`** (`@classytic/vixel` / `/generators`) — variable playback speed
+  across a clip via intent-level `segments: [{ throughSec, speed }]`, with
+  **optical-flow slow-motion** (`minterpolate`) on slow segments for buttery,
+  non-stuttered slow-mo. Returns a source→output time `plan` so a host can keep
+  its timeline in sync. Video-only by design (bring audio from a separate track).
+- **`motionEffect`** (`@classytic/vixel` / `/generators`) — trending in-filter
+  effects via one dispatcher: `glitch` (RGB split + temporal noise + pump),
+  `shake` (handheld crop jitter), `rgb-split` (chromatic aberration), and
+  `zoom-punch` (rhythmic decaying zoom pulse). Pure ffmpeg — no per-frame canvas
+  pass (doc-portal-be renders these on a canvas; vixel does them in-filter).
+- **Transition presets** (`@classytic/vixel/compose`) — `TRANSITION_PRESETS`, a
+  CapCut-flavored catalog **as data** (`whip-pan`, `zoom-blur`, `blur`, `glitch`,
+  `radial`, `ripple`, `squeeze`, `iris`) mapping friendly intent-level names to
+  render-verified `xfade` parameters + advisory durations. Usable directly as a
+  clip `transition.type`; the catalog is published so a host editor / browser
+  preview can read the same names without importing a renderer. (doc-portal-be
+  has *no* clip transitions — it hard-cuts with `concat -c copy`.)
+- **`beatSync`** (`@classytic/vixel/compose`) — the "auto-edit": `detectBeats`
+  finds audio onsets (zero-dependency — ffmpeg decodes PCM, energy-flux
+  peak-picking in pure JS, with a BPM estimate), and `beatSyncSpec` snaps clip
+  cuts to those beats, emitting an intent-level `VixelSpec` for `compose()`. The
+  pure pieces (`pickOnsets`, `estimateBpm`, `beatSyncSpec`) are exported for
+  testing and for hosts that already have beat times. Best-effort onset
+  detection (not full tempo tracking) — stated honestly.
+
+### Added — compositing & the primitive contract
+
+- **`@classytic/vixel/compositing`** — the `mixer2` family: **`chromaKey`**
+  (green-screen key + composite), **`blend`** (screen/multiply/overlay/… modes),
+  and **`mask`** (geometric circle/ellipse alpha cutout with feather). Pure
+  ffmpeg; doc-portal-be has none of these.
+- **Primitive descriptors** (`VixelPrimitiveDescriptor`, `@classytic/vixel`) — a
+  machine-readable contract per primitive: typed params (`min/max/displayMin/
+  default/animatable/semantic`) + an input arity (`source/filter/mixer2/mixer3`,
+  frei0r's taxonomy). `COMPOSITING_DESCRIPTORS` publishes the catalog as data so
+  an agent or editor UI can enumerate primitives without hardcoding. Modeled on
+  OpenFX/frei0r, minus the negotiation overkill ffmpeg can't use.
+- **`DESIGN.md`** — the architecture of record (the filter-graph-vs-compositor
+  law, the four design moves, and what vixel deliberately refuses), grounded in a
+  study of OpenTimelineIO, MLT, OpenFX, frei0r, and movis — and **pressure-tested
+  against Shotcut (NLE-on-engine) and Natron (node compositor)**, which confirmed
+  the boundary. From that study: param `unit` + `step` fields, a `spatial`
+  semantic, and two more render-verified blend modes (`divide`, `average`);
+  GUI-host knob fields (decimals/secret/grouping/ganging) consciously refused.
+
+### Added — schema durability (versioned, portable interchange)
+
+- **Schema versioning** (`@classytic/vixel` + `/compose`) — `CURRENT_SPEC_VERSION`
+  + `migrateSpec(raw)` with a registered upgrade chain, so an editor's saved
+  project / an agent's emitted spec keeps loading across vixel versions (OTIO's
+  durability pattern, document-scoped).
+- **Media references** — a clip/overlay/audio `source` is now `string | MediaReference`
+  (`external` relocatable/proxy-swap · `generator` synthetic · `missing` offline).
+  `resolveToPath` / `mediaInputArgs` resolve them; compose handles string +
+  `external` and errors clearly on `missing`/un-materialized `generator`.
+- **`generateSource`** (`source` arity) — materializes a `generator` reference
+  (`color` / `testsrc` / `smptebars`) to a real clip; fills out the descriptor
+  arity taxonomy (source/filter/mixer2) and makes generator references usable
+  without inlining lavfi into the compose graph.
+- **`metadata` passthrough** — every spec node (`VixelSpec`, `Clip`, overlays,
+  `AudioItem`) carries an optional `metadata` bag, untouched by render — the
+  vendor/agent/editor extensibility escape hatch.
+
+### Added — keyframes (scoped, ffmpeg-honorable)
+
+- **Keyframe core** (`@classytic/vixel` + `/compose`) — `compileScalarKeyframes`
+  turns `[{ t, value, easing }]` (easings `linear`/`easeIn`/`easeOut`/`easeInOut`
+  /`hold`) into an ffmpeg time-expression. Deliberately limited to attributes
+  ffmpeg animates per-frame; animated *effect* params and roto stay compositor-
+  tier (DESIGN.md). The data shape is also the contract a host's keyframe-curve
+  editor renders.
+- **Animated overlay motion** — an image/GIF overlay can carry `motion:
+  [{ t, x, y, easing }]` (normalized, local time); compose compiles it to a
+  keyframed `overlay=x/y` path — moving stickers / animated lower-thirds, the
+  first end-to-end keyframe application.
+
+### Added — frame-exact time (the editor/agent timeline contract)
+
+- **Frame-exact time** (`@classytic/vixel` + `/compose`) — `toFrames` /
+  `toSeconds` / `snapToFrame` / `formatTimecode` / `parseTimecode`. The public
+  API stays in seconds, but `compose()` now **snaps every cut to the output frame
+  grid** (no float drift — kills the trim-overflow class).
+- **`planTimeline(clips, fps?)`** now returns a frame-exact plan: per-clip/
+  per-transition `frameDuration` / `frameOffset` / `frameTrimStart` and a
+  `totalFrames` — the exact **zoom domain** a host's timeline ruler/playhead
+  consumes (pixels-per-frame), with `formatTimecode` for the ruler labels.
+  Together with the primitive descriptors, this is the contract a Node.js editor
+  builds on. (Omit `fps` for the legacy float behavior.)
+
 ### Added — quality
 
 - **API-surface conformance harness** (`test/api-surface.test.ts`) — golden

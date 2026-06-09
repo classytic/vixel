@@ -3,6 +3,11 @@ import { defineWorkspace } from 'vitest/config';
 /** ffmpeg-free, parallel-safe, fast. The default `pnpm test` path. */
 const UNIT = [
   'test/api-surface.test.ts',
+  'test/time.test.ts',
+  'test/keyframe.test.ts',
+  'test/schema-durability.test.ts',
+  'test/speed-ramp.test.ts',
+  'test/motion-effects.test.ts',
   'test/errors.test.ts',
   'test/source.test.ts',
   'test/url-guard.test.ts',
@@ -16,6 +21,9 @@ const UNIT = [
   'test/compose-graph.test.ts',
   'test/compose-layout.test.ts',
   'test/compose-text.test.ts',
+  'test/compose-transitions.test.ts',
+  'test/beat-sync.test.ts',
+  'test/compositing.test.ts',
   'test/concurrency.test.ts',
   'test/temp-manager.test.ts',
   'test/ffmpeg-spawn.test.ts',

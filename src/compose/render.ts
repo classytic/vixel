@@ -109,7 +109,8 @@ export async function compose(
   }
   assertRenderable(spec);
 
-  const plan = planTimeline(videoTrack.clips);
+  // Snap to the output frame grid so cuts are frame-exact (no float drift).
+  const plan = planTimeline(videoTrack.clips, fpsNumber(spec.output.fps));
   const ffmpegPath = config.ffmpegPath ?? 'ffmpeg';
   const ffprobePath = config.ffprobePath ?? 'ffprobe';
 
