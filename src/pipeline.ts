@@ -53,7 +53,7 @@ import { compressVideo } from './generators/compression/generator.js';
 import { changeSpeed } from './generators/speed/generator.js';
 import { convertFormat } from './generators/convert/generator.js';
 import { mixAudio } from './generators/audio-mix/generator.js';
-import { burnCaptions } from './generators/captions/generator.js';
+import { burnSubtitles } from './generators/captions/generator.js';
 import { reframe } from './generators/reframe/generator.js';
 import { fade } from './generators/fade/generator.js';
 import { adjustColor, applyLut } from './generators/color/generator.js';
@@ -224,7 +224,7 @@ export class VideoPipeline {
       label: 'captions',
       ext: 'mp4',
       run: (input, output, ctrl) =>
-        burnCaptions(input, output, this.merge(config, ctrl)).then(() => input.duration),
+        burnSubtitles(input, output, this.merge(config, ctrl)).then(() => input.duration),
     });
     return this;
   }

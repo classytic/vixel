@@ -61,6 +61,10 @@ describe('media references', () => {
     expect(lavfiDescriptor({ kind: 'generator', generator: 'testsrc' }, dims)).toBe('testsrc2=s=1920x1080:d=3');
     expect(lavfiDescriptor({ kind: 'generator', generator: 'smptebars' }, dims)).toBe('smptebars=s=1920x1080:d=3');
   });
+  it('rejects an unsafe colour in a generator (filter injection)', () => {
+    const dims = { width: 10, height: 10, durationSec: 1 };
+    expect(() => lavfiDescriptor({ kind: 'generator', generator: 'color', params: { color: 'black:rate=1' } }, dims)).toThrow(/unsafe/);
+  });
   it('mediaInputArgs: files use -i, generators use -f lavfi -i', () => {
     const dims = { width: 640, height: 360, durationSec: 2 };
     expect(mediaInputArgs('a.mp4', dims)).toEqual({ input: 'a.mp4', options: [] });

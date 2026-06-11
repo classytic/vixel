@@ -10,6 +10,7 @@
  */
 
 import { ConfigError } from '../errors.js';
+import { assertSafeColor } from './color.js';
 
 /** Synthetic sources vixel can generate (lavfi-backed). */
 export type GeneratorKind = 'color' | 'testsrc' | 'smptebars';
@@ -68,7 +69,7 @@ export function lavfiDescriptor(
   const d = Number(dims.durationSec.toFixed(3));
   switch (ref.generator) {
     case 'color':
-      return `color=c=${ref.params?.color ?? 'black'}:s=${s}:d=${d}`;
+      return `color=c=${assertSafeColor(ref.params?.color ?? 'black')}:s=${s}:d=${d}`;
     case 'testsrc':
       return `testsrc2=s=${s}:d=${d}`;
     case 'smptebars':

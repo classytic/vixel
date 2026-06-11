@@ -262,7 +262,7 @@ export {
   mixAudio,
   buildAudioMixFilter,
   // Caption Burn-in Generator
-  burnCaptions,
+  burnSubtitles,
   buildSubtitlesFilter,
   buildDrawtextFilter,
   escapeSubtitlePath,

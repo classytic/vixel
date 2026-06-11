@@ -407,7 +407,7 @@ Higher-level operations for AI-video and editing pipelines — each is a generat
 *and* a pipeline step.
 
 ```typescript
-import { mixAudio, burnCaptions, concatWithTransitions, reframe, fade, extractFrameAt } from '@classytic/vixel';
+import { mixAudio, burnSubtitles, concatWithTransitions, reframe, fade, extractFrameAt } from '@classytic/vixel';
 
 // Voiceover over auto-ducked background music (music drops under speech)
 await mixAudio({ inputPath: './visuals.mp4', duration: 30 }, './final.mp4', {
@@ -415,9 +415,10 @@ await mixAudio({ inputPath: './visuals.mp4', duration: 30 }, './final.mp4', {
   music: './bed.mp3',           // duck defaults on when both are present
 });
 
-// Burn subtitles (Windows paths handled) or a styled text overlay
-await burnCaptions(source, './captioned.mp4', { subtitlePath: './captions.srt', forceStyle: 'Fontsize=30' });
-await burnCaptions(source, './titled.mp4',    { text: 'Chapter One', position: 'center', fontSize: 48 });
+// Burn a subtitle FILE or a static styled text block (distinct from the animated
+// `burnCaptions` in @classytic/vixel/captions — see that section above).
+await burnSubtitles(source, './captioned.mp4', { subtitlePath: './captions.srt', forceStyle: 'Fontsize=30' });
+await burnSubtitles(source, './titled.mp4',    { text: 'Chapter One', position: 'center', fontSize: 48 });
 
 // Crossfade/dissolve/wipe between clips (instead of hard cuts)
 await concatWithTransitions([shot1, shot2, shot3], './reel.mp4', {

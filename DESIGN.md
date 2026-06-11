@@ -101,6 +101,13 @@ This single move does three things at once:
    they are the **`mixer2`** arity. One abstraction, the whole family.
 3. **OFX-grade consistency** that reads as pro-tier — without OFX's weight.
 
+**Rollout status (honest):** the descriptor *contract* is established and ships on
+the newest primitives — the `compositing/*` family (`COMPOSITING_DESCRIPTORS`)
+and the generator `source`. The ~24 legacy single-op generators are not yet
+descriptor-backed; their config shapes are already uniform, so adding descriptors
+is mechanical and incremental. An introspecting host should treat the descriptor
+catalog as *growing*, not yet exhaustive.
+
 ### 3. Keyframes — adopted, but scoped honestly
 
 MLT's value model (`0=0;30~=0.8;60c=0.2`, an interpolation prefix per key) and

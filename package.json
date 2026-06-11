@@ -1,6 +1,6 @@
 {
   "name": "@classytic/vixel",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Composable FFmpeg primitives for AI/agentic video — typed, dry-runnable, tree-shakeable. Source, captions, profiles, and a declarative compose renderer.",
   "type": "module",
   "sideEffects": false,
@@ -79,6 +79,10 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/classytic/vixel"
+  },
+  "homepage": "https://github.com/classytic/vixel#readme",
+  "bugs": {
+    "url": "https://github.com/classytic/vixel/issues"
   },
   "engines": {
     "node": ">=18.0.0"

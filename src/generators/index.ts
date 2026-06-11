@@ -1,33 +1,16 @@
 /**
  * Feature Generators
  * ===================
- * Modular, tree-shakeable video processing generators.
+ * Modular, tree-shakeable single-op video transforms. Each is a flat function
+ * `fn(source, output, config)` (no namespaces).
  *
  * @example
  * ```typescript
- * import { gif, thumbnails, sprites, chapters } from '@classytic/vixel';
+ * import { generateGif, extractThumbnail, generateSprites } from '@classytic/vixel/generators';
  *
- * // Generate GIF with two-pass optimization
- * const gifResult = await gif.generate(source, timeRange, outputDir, {
- *   format: 'webp',
- *   width: 480,
- *   optimization: 'quality',
- * });
- *
- * // Extract thumbnail
- * const thumb = await thumbnails.extract(source, 30, './thumb.jpg');
- *
- * // Generate sprite sheet
- * const spriteResult = await sprites.generate(source, outputDir, {
- *   interval: 10,
- *   columns: 5,
- * });
- *
- * // Generate chapters
- * const chaptersResult = await chapters.generate(source, outputDir, {
- *   mode: 'auto',
- *   interval: 300,
- * });
+ * await generateGif(source, './out.gif', { width: 480, optimization: 'quality' });
+ * await extractThumbnail(source, 30, './thumb.jpg');
+ * await generateSprites(source, './sprites', { interval: 10, columns: 5 });
  * ```
  *
  * @module generators
@@ -246,7 +229,7 @@ export type { AudioMixConfig, AudioMixResult } from './audio-mix/index.js';
 // =============================================================================
 
 export {
-  burnCaptions,
+  burnSubtitles,
   buildSubtitlesFilter,
   buildDrawtextFilter,
   escapeSubtitlePath,

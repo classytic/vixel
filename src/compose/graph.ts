@@ -22,6 +22,7 @@ import { overlayXY, overlayWidthPx } from './layout.js';
 import { resolveXfadeName } from './transitions.js';
 import { compileScalarKeyframes } from '../core/keyframe.js';
 import { resolveToPath } from '../core/media-reference.js';
+import { assertSafeColor } from '../core/color.js';
 import type { TimelinePlan } from './timeline.js';
 import type { AudioItem, ClipAnimation, ImageOverlay, VixelSpec } from './schema.js';
 
@@ -104,7 +105,14 @@ export interface ComposeGraphInput {
 const A_NORM = 'aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo';
 
 export function fpsNumber(fps: VixelSpec['output']['fps']): number {
-  return typeof fps === 'number' ? fps : fps.num / fps.den;
+  if (typeof fps === 'number') {
+    if (!(fps > 0)) throw new ConfigError(`output.fps must be > 0 (got ${fps})`);
+    return fps;
+  }
+  if (!(fps.den > 0) || !(fps.num > 0)) {
+    throw new ConfigError(`output.fps {num,den} must both be > 0 (got ${fps.num}/${fps.den})`);
+  }
+  return fps.num / fps.den;
 }
 
 /** Round a float gain to 3 decimals for a clean filter string. */
@@ -122,7 +130,7 @@ export function buildComposeGraph({ spec, plan, clipHasAudio, captionsAssPath }:
   const W = spec.output.width;
   const H = spec.output.height;
   const F = fpsNumber(spec.output.fps);
-  const bg = (spec.output.background ?? '#000000').replace('#', '0x');
+  const bg = assertSafeColor(spec.output.background ?? '#000000', 'output.background').replace('#', '0x');
   const n = plan.clips.length;
 
   const allHard = plan.transitions.every((t) => t.duration === 0);

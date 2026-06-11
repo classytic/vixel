@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.3.0] — 2026-06-08
+## [0.5.0] — 2026-06-09
 
 The "premium primitives" release. Vixel grows from an HLS processor into a
 clean, composable FFmpeg primitive engine for AI/agentic video — typed,
@@ -152,6 +152,18 @@ declarative `compose()` renderer that turns one spec into one `filter_complex`.
   named import.
 - Internal identity cleanup: residual `@classytic/hls-processor` references in
   source headers/JSDoc renamed to `@classytic/vixel`.
+- **Renamed the legacy subtitle burner `burnCaptions` → `burnSubtitles`**
+  (`@classytic/vixel` / `/generators`). It burns an `.srt`/`.ass` file or a static
+  text block — now clearly distinct from the animated `burnCaptions` in
+  `@classytic/vixel/captions`. Migration: `burnCaptions(src, out, cfg)` →
+  `burnSubtitles(src, out, cfg)`.
+
+### Security / hardening
+
+- Validate colours (`color=`/`background`) before they reach the filtergraph
+  (rejects filter-injection via `:`/`,`/quotes); guard `output.fps` against
+  zero/negative (and `{num,den:0}`); cap `detectBeats` PCM decode to avoid OOM on
+  very long audio.
 
 ## [0.2.0] — 2026-05-30
 
@@ -228,69 +240,6 @@ primitives. No breaking changes to the existing 11 generators.
 ### Tests
 - 11 ffmpeg-free regression tests (dry-run + `onCommand`) covering sprite cell
   geometry and `changeSpeed` codec/crf/pitch wiring.
-
----
-
-## [0.5.1] — 2026-05-29
-
-### Added — "Living image" primitives
-- **`glow()`** — soft luminance bloom (blur a copy, screen-blend back). Optional
-  `highlightsOnly` masks bright pixels first. The dreamy Ghibli look. Pipeline: `.glow()`
-- **`parallax3d()`** — depth-driven 2.5D "3D photo" move via `displace`: a still
-  image + a grayscale depth map → a fake camera move where near pixels travel
-  more than far ones. Modes: `sway` / `pan` / `orbit`.
-  - *Honest limit:* ffmpeg `displace` has no occlusion handling, so large moves
-    smear at depth edges — keep `amplitude` modest. The depth map itself must come
-    from a depth model (Depth Anything / MiDaS) — that estimation is the host's job.
-
-New builders: `buildGlowFilter`, `buildParallaxFilter`.
-
-> These are the ffmpeg-native approximations of the "living image" look. Truly
-> *generative* motion (water flowing, a character moving) is image-to-video and
-> remains a model/provider's job, not vixel's.
-
-### Tests
-- 7 unit tests (builders + dry-run) + 3 e2e (glow, highlights glow, parallax) on real ffmpeg
-
----
-
-## [0.5.0] — 2026-05-29
-
-### Added — Faceless-video / motion primitives
-Mechanical primitives for image-driven content (the faceless-YouTube staples).
-All pipeline-aware where applicable, with dry-run / abort / typed errors and
-pure unit-tested filter builders.
-
-- **`kenBurns()`** — turn a still image into a moving clip via `zoompan`
-  (zoom in/out, pan left/right/up/down). Pre-scales for jitter-free motion.
-- **`slideshow()`** — assemble many images into a video: per-slide duration,
-  optional Ken Burns (auto-alternating direction), and transitions. Composes
-  `kenBurns` + the transition/concat primitives with managed temp files.
-- **`adjustColor()`** — parametric grade: brightness / contrast / saturation /
-  gamma (`eq`) + `sharpen` (`unsharp`). Emits only the knobs you change.
-  Pipeline: `.adjust()`
-- **`applyLut()`** — apply a `.cube` 3D LUT (`lut3d`, Windows-safe path).
-  Pipeline: `.lut()`
-- **`normalizeLoudness()`** — EBU R128 `loudnorm` to a target LUFS, **two-pass**
-  by default (measure → apply, linear) for accuracy. Platform presets
-  (`youtube`/`spotify`/`tiktok` = -14, `broadcast` = -23).
-
-New pure builders: `buildKenBurnsFilter`, `buildColorAdjustFilter`,
-`buildLut3dFilter`, `buildLoudnormFilter`, `parseLoudnormJson`.
-
-### Scope note
-vixel ships **mechanical, parametric ffmpeg primitives** (+ the
-`applyFFmpegFilter` escape hatch). Content acquisition (TTS, stock, AI gen,
-caption *timing*), creative/taste decisions (which LUT, how much grain), and
-workflow orchestration beyond the pipeline remain the host/agent's job.
-
-### Tests
-- 18 new ffmpeg-free unit tests (builders + dry-run command shape)
-- 4 new e2e tests proving Ken Burns / slideshow / color / loudnorm run on real ffmpeg
-
-### Deferred
-- Standardizing `duration` auto-probe across all generators into one helper
-  (current behavior works; some probe-on-missing, some require it).
 
 ---
 

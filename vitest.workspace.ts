@@ -5,6 +5,7 @@ const UNIT = [
   'test/api-surface.test.ts',
   'test/time.test.ts',
   'test/keyframe.test.ts',
+  'test/color.test.ts',
   'test/schema-durability.test.ts',
   'test/speed-ramp.test.ts',
   'test/motion-effects.test.ts',

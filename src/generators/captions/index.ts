@@ -1,4 +1,4 @@
-export { burnCaptions } from './generator.js';
+export { burnSubtitles } from './generator.js';
 export {
   buildSubtitlesFilter,
   buildDrawtextFilter,

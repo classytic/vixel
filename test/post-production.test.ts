@@ -15,7 +15,7 @@ import { buildXfadeGraph } from '../src/generators/transitions/constants.js';
 import { buildReframeFilter, ASPECT_DIMENSIONS } from '../src/generators/reframe/constants.js';
 import { buildFadeFilters } from '../src/generators/fade/constants.js';
 import { mixAudio } from '../src/generators/audio-mix/generator.js';
-import { burnCaptions } from '../src/generators/captions/generator.js';
+import { burnSubtitles } from '../src/generators/captions/generator.js';
 import { reframe } from '../src/generators/reframe/generator.js';
 import { fade } from '../src/generators/fade/generator.js';
 import { extractFrameAt } from '../src/generators/frame/generator.js';
@@ -125,13 +125,13 @@ describe('caption filters', () => {
     expect(f).toContain('y=h-th-40');
   });
 
-  it('burnCaptions needs subtitlePath or text', async () => {
-    await expect(burnCaptions(src, 'out.mp4', { dryRun: true })).rejects.toMatchObject({ code: 'INVALID_CONFIG' });
+  it('burnSubtitles needs subtitlePath or text', async () => {
+    await expect(burnSubtitles(src, 'out.mp4', { dryRun: true })).rejects.toMatchObject({ code: 'INVALID_CONFIG' });
   });
 
-  it('burnCaptions dry-run copies audio and re-encodes video', async () => {
+  it('burnSubtitles dry-run copies audio and re-encodes video', async () => {
     const { cmds, onCommand } = capture();
-    await burnCaptions(src, 'out.mp4', { text: 'Hi', dryRun: true, onCommand });
+    await burnSubtitles(src, 'out.mp4', { text: 'Hi', dryRun: true, onCommand });
     expect(cmds[0]!.command).toContain('drawtext');
     expect(cmds[0]!.command).toContain('-c:a copy');
   });

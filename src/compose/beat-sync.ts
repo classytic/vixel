@@ -14,7 +14,7 @@
 import { spawn } from 'node:child_process';
 import type { VideoSource } from '../types/generators.js';
 import type { VixelSpec, Clip } from './schema.js';
-import { FFmpegError } from '../errors.js';
+import { FFmpegError, ConfigError } from '../errors.js';
 
 export interface DetectBeatsConfig {
   ffmpegPath?: string;
@@ -82,13 +82,25 @@ export function estimateBpm(beats: readonly number[]): number {
 }
 
 /** Decode an input's first audio stream to mono s16le PCM (returns the raw buffer). */
+/** Cap decoded PCM at ~30 min mono @ 48k s16le (~170 MB) so a huge input can't OOM. */
+const MAX_PCM_BYTES = 180 * 1024 * 1024;
+
 function decodePcmMono(ffmpegPath: string, input: string, sampleRate: number, signal?: AbortSignal): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const args = ['-i', input, '-map', '0:a:0', '-ac', '1', '-ar', String(sampleRate), '-f', 's16le', '-'];
     const proc = spawn(ffmpegPath, args, signal ? { signal } : {});
     const chunks: Buffer[] = [];
+    let total = 0;
     let stderr = '';
-    proc.stdout.on('data', (d: Buffer) => chunks.push(d));
+    proc.stdout.on('data', (d: Buffer) => {
+      total += d.length;
+      if (total > MAX_PCM_BYTES) {
+        proc.kill('SIGKILL');
+        reject(new ConfigError(`audio too long for beat detection (> ${Math.round(MAX_PCM_BYTES / 1e6)} MB decoded)`, { context: { input } }));
+        return;
+      }
+      chunks.push(d);
+    });
     proc.stderr.on('data', (d: Buffer) => (stderr = (stderr + d.toString()).slice(-2000)));
     proc.on('error', reject);
     proc.on('close', (code) => {

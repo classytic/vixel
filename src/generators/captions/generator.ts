@@ -6,7 +6,7 @@
  *
  * @example
  * ```typescript
- * await burnCaptions({ inputPath: './in.mp4', duration: 30 }, './out.mp4', {
+ * await burnSubtitles({ inputPath: './in.mp4', duration: 30 }, './out.mp4', {
  *   subtitlePath: './captions.srt',
  *   forceStyle: 'Fontsize=30,Outline=2',
  * });
@@ -29,7 +29,7 @@ import { spawnFFmpeg, configToSpawnOptions } from '../../core/ffmpeg-spawn.js';
 import { outputSize } from '../../core/temp-manager.js';
 import { VixelError, ErrorCode } from '../../errors.js';
 
-export async function burnCaptions(
+export async function burnSubtitles(
   source: VideoSource,
   outputPath: string,
   config: CaptionConfig,
@@ -38,7 +38,7 @@ export async function burnCaptions(
   const ffmpegPath = config.ffmpegPath ?? 'ffmpeg';
 
   if (!config.subtitlePath && !config.text) {
-    throw new VixelError('burnCaptions requires `subtitlePath` or `text`', { code: ErrorCode.INVALID_CONFIG });
+    throw new VixelError('burnSubtitles requires `subtitlePath` or `text`', { code: ErrorCode.INVALID_CONFIG });
   }
 
   const mode: 'subtitles' | 'text' = config.subtitlePath ? 'subtitles' : 'text';
