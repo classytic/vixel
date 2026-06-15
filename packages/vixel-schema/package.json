@@ -1,0 +1,57 @@
+{
+  "name": "@classytic/vixel-schema",
+  "version": "0.1.0",
+  "description": "The VixelSpec composition contract — zero-dependency, agent-emittable TypeScript types shared by vixel (engine), vixel-ui (editor), and agents. No ffmpeg, no React.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown && tsc --emitDeclarationOnly --outDir dist",
+    "dev": "tsdown --watch",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "vixel",
+    "video",
+    "schema",
+    "composition",
+    "ai-video",
+    "agentic",
+    "typescript",
+    "types"
+  ],
+  "author": "Classytic",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/classytic/vixel-schema.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "tsdown": "^0.20.3",
+    "typescript": "^5.3.0",
+    "vitest": "^4.0.0"
+  }
+}

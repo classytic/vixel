@@ -1,103 +1,20 @@
 {
-  "name": "@classytic/vixel",
-  "version": "0.5.0",
-  "description": "Composable FFmpeg primitives for AI/agentic video — typed, dry-runnable, tree-shakeable. Source, captions, profiles, and a declarative compose renderer.",
+  "name": "vixel-monorepo",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Classytic vixel video stack — engine, schema contract, and editor UI as workspace packages.",
   "type": "module",
-  "sideEffects": false,
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
-    "./generators": {
-      "types": "./dist/generators/index.d.ts",
-      "import": "./dist/generators/index.js"
-    },
-    "./utils": {
-      "types": "./dist/utils/index.d.ts",
-      "import": "./dist/utils/index.js"
-    },
-    "./profiles": {
-      "types": "./dist/profiles/index.d.ts",
-      "import": "./dist/profiles/index.js"
-    },
-    "./captions": {
-      "types": "./dist/captions/index.d.ts",
-      "import": "./dist/captions/index.js"
-    },
-    "./compose": {
-      "types": "./dist/compose/index.d.ts",
-      "import": "./dist/compose/index.js"
-    },
-    "./compositing": {
-      "types": "./dist/compositing/index.d.ts",
-      "import": "./dist/compositing/index.js"
-    }
-  },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE",
-    "CHANGELOG.md",
-    "DESIGN.md"
+  "workspaces": [
+    "packages/*"
   ],
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run --project unit",
-    "test:unit": "vitest run --project unit",
-    "test:e2e": "vitest run --project e2e",
-    "test:all": "vitest run",
-    "test:watch": "vitest --project unit",
-    "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --project unit --coverage",
-    "prepublishOnly": "npm run build && npm run test:unit",
-    "push": "classytic-push"
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
   },
-  "keywords": [
-    "video",
-    "video-processing",
-    "ffmpeg",
-    "hls",
-    "streaming",
-    "gif",
-    "video-effects",
-    "ai-video",
-    "video-engine",
-    "transcoding",
-    "adaptive-bitrate",
-    "thumbnails",
-    "vixel"
-  ],
   "author": "Classytic",
   "license": "MIT",
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org/"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/classytic/vixel"
-  },
-  "homepage": "https://github.com/classytic/vixel#readme",
-  "bugs": {
-    "url": "https://github.com/classytic/vixel/issues"
-  },
   "engines": {
     "node": ">=18.0.0"
-  },
-  "peerDependencies": {
-    "fluent-ffmpeg": "^2.1.0"
-  },
-  "devDependencies": {
-    "@classytic/dev-tools": "^0.2.0",
-    "@types/fluent-ffmpeg": "^2.1.27",
-    "@types/node": "^22.10.2",
-    "@vitest/ui": "^2.1.8",
-    "fluent-ffmpeg": "^2.1.3",
-    "tsup": "^8.3.5",
-    "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
   }
 }

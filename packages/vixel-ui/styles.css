@@ -1,0 +1,31 @@
+/**
+ * @classytic/vixel-ui — Tailwind integration.
+ * ================================================
+ * The primitives are headless; the polished look comes from the cva `variants`
+ * (see `@classytic/vixel-ui/shared`). Import this once in your app's global CSS
+ * so Tailwind scans our compiled classes:
+ *
+ *   @import "tailwindcss";
+ *   @import "@classytic/vixel-ui/styles.css";
+ *
+ * Or relative (monorepo):
+ *
+ *   @import "../../classytic/vixel-ui/styles.css";
+ */
+
+/* Tell Tailwind to scan the package for class names used by the variants. */
+@source "./dist";
+
+/* Minimal, optional resets for editor surfaces. */
+[data-vixel-timeline] {
+  scrollbar-width: thin;
+}
+
+[data-vixel-clip] {
+  user-select: none;
+  touch-action: none;
+}
+
+[data-vixel-playhead] {
+  touch-action: none;
+}
