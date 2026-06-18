@@ -259,52 +259,69 @@ export function TransformOverlay({ className, recomputeKey }: TransformOverlayPr
         );
       })}
 
-      {showGizmo && g && (
-        <div className="absolute" style={{ left: g.left, top: g.top, width: g.width, height: g.height, transform: `rotate(${rotation}deg)`, transformOrigin: 'center', zIndex: 10 }}>
-          <div
-            onPointerDown={startDrag('move')}
-            className="pointer-events-auto absolute inset-0 cursor-move shadow-[0_0_0_1px_rgba(0,0,0,0.45)]"
-            style={{ touchAction: 'none', border: `2px ${isText ? 'dashed' : 'solid'} var(--color-primary, #6366f1)` }}
-          />
-          <div className="absolute left-1/2 -translate-x-1/2" style={{ top: -22, height: 22, width: 2, background: 'var(--color-primary, #6366f1)' }} />
-          <button
-            type="button"
-            aria-label="Rotate"
-            onPointerDown={startDrag('rotate')}
-            className="pointer-events-auto absolute left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full border-2 border-primary bg-white text-primary shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            style={{ top: -44, cursor: 'grab', touchAction: 'none' }}
-          >
-            <svg viewBox="0 0 24 24" className="size-3" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M21 12a9 9 0 1 1-3-6.7" />
-              <path d="M21 3v6h-6" />
-            </svg>
-          </button>
-          {HANDLES.map((h) => {
-            const isCorner = h.mode.length === 2;
-            const isVert = h.mode === 'e' || h.mode === 'w';
-            const shape = isCorner ? 'size-3.5 rounded-[4px]' : isVert ? 'h-6 w-1.5 rounded-full' : 'h-1.5 w-6 rounded-full';
-            const onDown = startDrag(h.mode);
-            return (
-              <button
-                key={h.mode}
-                type="button"
-                aria-label={`Resize ${h.mode}`}
-                onPointerDown={(e) => {
-                  // Capture the text's pre-drag box + fontSize so the resize can scale
-                  // the font proportionally (see the onChange handler above).
-                  if (isText && frame) {
-                    const fs = clip?.media.kind === 'text' ? clip.media.style?.fontSize : undefined;
-                    resizeBase.current = { frame: { ...frame }, fontSize: typeof fs === 'number' ? fs : Math.round(W * 0.05) };
-                  }
-                  onDown(e);
-                }}
-                className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 border-2 border-primary bg-white shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${shape}`}
-                style={{ left: h.cx * g.width, top: h.cy * g.height, cursor: h.cursor, touchAction: 'none' }}
-              />
-            );
-          })}
-        </div>
-      )}
+      {/* The gizmo is TWO stacked layers so it survives overlapping clips:
+          - the MOVE surface stays at z-10 so a clip stacked IN FRONT (its hit region
+            at z-25) can still be click-selected through the selected clip's body;
+          - the precise HANDLES + ROTATE knob sit at z-30 (ABOVE those hit regions) so
+            resize/rotate ALWAYS work, even when another clip overlaps the selection
+            (otherwise a transparent z-25 region eats the handle clicks — you'd see the
+            handles but dragging would do nothing). */}
+      {showGizmo && g &&
+        (() => {
+          const boxStyle = { left: g.left, top: g.top, width: g.width, height: g.height, transform: `rotate(${rotation}deg)`, transformOrigin: 'center' } as const;
+          return (
+            <>
+              {/* Move surface + selection box — z-10 (select-through-able body). */}
+              <div className="absolute" style={{ ...boxStyle, zIndex: 10 }}>
+                <div
+                  onPointerDown={startDrag('move')}
+                  className="pointer-events-auto absolute inset-0 cursor-move shadow-[0_0_0_1px_rgba(0,0,0,0.45)]"
+                  style={{ touchAction: 'none', border: `2px ${isText ? 'dashed' : 'solid'} var(--color-primary, #6366f1)` }}
+                />
+              </div>
+              {/* Handles + rotate — z-30, always interactive (above any hit region). */}
+              <div className="pointer-events-none absolute" style={{ ...boxStyle, zIndex: 30 }}>
+                <div className="absolute left-1/2 -translate-x-1/2" style={{ top: -22, height: 22, width: 2, background: 'var(--color-primary, #6366f1)' }} />
+                <button
+                  type="button"
+                  aria-label="Rotate"
+                  onPointerDown={startDrag('rotate')}
+                  className="pointer-events-auto absolute left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full border-2 border-primary bg-white text-primary shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  style={{ top: -44, cursor: 'grab', touchAction: 'none' }}
+                >
+                  <svg viewBox="0 0 24 24" className="size-3" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M21 12a9 9 0 1 1-3-6.7" />
+                    <path d="M21 3v6h-6" />
+                  </svg>
+                </button>
+                {HANDLES.map((h) => {
+                  const isCorner = h.mode.length === 2;
+                  const isVert = h.mode === 'e' || h.mode === 'w';
+                  const shape = isCorner ? 'size-3.5 rounded-[4px]' : isVert ? 'h-6 w-1.5 rounded-full' : 'h-1.5 w-6 rounded-full';
+                  const onDown = startDrag(h.mode);
+                  return (
+                    <button
+                      key={h.mode}
+                      type="button"
+                      aria-label={`Resize ${h.mode}`}
+                      onPointerDown={(e) => {
+                        // Capture the text's pre-drag box + fontSize so the resize can scale
+                        // the font proportionally (see the onChange handler above).
+                        if (isText && frame) {
+                          const fs = clip?.media.kind === 'text' ? clip.media.style?.fontSize : undefined;
+                          resizeBase.current = { frame: { ...frame }, fontSize: typeof fs === 'number' ? fs : Math.round(W * 0.05) };
+                        }
+                        onDown(e);
+                      }}
+                      className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 border-2 border-primary bg-white shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${shape}`}
+                      style={{ left: h.cx * g.width, top: h.cy * g.height, cursor: h.cursor, touchAction: 'none' }}
+                    />
+                  );
+                })}
+              </div>
+            </>
+          );
+        })()}
     </div>
   );
 }

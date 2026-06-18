@@ -4,7 +4,7 @@
  */
 import type * as PIXINS from 'pixi.js';
 import type { VisualClip } from '@classytic/vixel-schema';
-import { entranceAt } from '@classytic/vixel-schema';
+import { entranceAt, resolveEntranceOptions } from '@classytic/vixel-schema';
 import type { Pixi, ElementLayout, RetainedScene } from '../types.js';
 import { ensureNode, boxOf, applyNodeRotation, composeNodeFilters, disposeEffectFilters, setZ } from '../node.js';
 import { applyBoxStyle } from '../graphics/boxstyle.js';
@@ -39,7 +39,7 @@ export function reconcileShapeClip(
   const cy = h / 2;
   const kind = media.shape ?? 'roundedRect';
 
-  const e = entranceAt(clip.enter, clip.exit, localT, dur);
+  const e = entranceAt(clip.enter, clip.exit, localT, dur, resolveEntranceOptions(clip.motionTiming));
   const alpha = (transform?.opacity ?? 1) * e.opacity;
 
   const shapeSig = JSON.stringify([kind, w, h, media.cornerRadius, media.fill, media.stroke, media.backdrop]);

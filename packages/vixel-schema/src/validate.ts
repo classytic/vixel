@@ -54,7 +54,7 @@ const zSourceRef = z.union([
   z.object({ kind: z.literal('generator'), generator: z.enum(['color', 'testsrc', 'smptebars']), params: z.object({ color: zHexColor.optional() }).optional() }),
   z.object({ kind: z.literal('missing'), hint: z.string().optional() }),
 ]);
-const zBlend = z.enum(['normal', 'screen', 'multiply', 'overlay']).optional();
+const zBlend = z.enum(['normal', 'screen', 'multiply', 'overlay', 'darken', 'lighten']).optional();
 const zMedia = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('video'), source: zSourceRef, trimStart: z.number().nonnegative().optional(), blend: zBlend }),
   z.object({ kind: z.literal('image'), source: zSourceRef, blend: zBlend }),

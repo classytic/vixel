@@ -16,6 +16,8 @@ export function pixiBlendMode(blend: string | undefined): PIXINS.BLEND_MODES | n
     case 'multiply': return 'multiply';
     case 'overlay': return 'overlay';
     case 'soft-light': return 'soft-light';
+    case 'darken': return 'darken';
+    case 'lighten': return 'lighten';
     default: return null;
   }
 }

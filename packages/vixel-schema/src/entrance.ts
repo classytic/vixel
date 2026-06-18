@@ -15,6 +15,7 @@
  * can't translate yet.
  */
 import type { OverlayEnter, OverlayExit } from './animation.js';
+import { applyEasing, type Easing } from './animation.js';
 
 export interface EntranceSample {
   /** Opacity multiplier 0..1 (fade). */
@@ -35,6 +36,11 @@ export interface EntranceOptions {
   distance?: number;
   /** Pop start/end scale (default {@link ENTRANCE_DEFAULTS}). */
   popScale?: number;
+  /** Easing for the ENTER motion (slide/pop). Default `easeOut` (the historical curve).
+   *  Opacity stays a linear ramp regardless (matches the ffmpeg `fade` filter). */
+  enterEasing?: Easing;
+  /** Easing for the EXIT motion. Default `easeIn` (the historical curve). */
+  exitEasing?: Easing;
 }
 
 /**
@@ -55,8 +61,6 @@ export const ENTRANCE_DEFAULTS = {
 
 const IDENTITY: EntranceSample = { opacity: 1, dx: 0, dy: 0, scale: 1 };
 const clamp01 = (n: number): number => (n < 0 ? 0 : n > 1 ? 1 : n);
-const easeOut = (p: number): number => 1 - Math.pow(1 - p, 3);
-const easeIn = (p: number): number => p * p * p;
 
 /** True for the positional slide presets (vs fade/pop). */
 export function isSlide(name: string | undefined): boolean {
@@ -97,7 +101,7 @@ export function entranceAt(
 
   if (enter && enter !== 'none' && inDur > 0 && localT < inDur) {
     const p = clamp01(localT / inDur); // 0 → 1
-    const e = easeOut(p);
+    const e = applyEasing(opts.enterEasing ?? 'easeOut', p);
     opacity *= p;
     if (enter === 'popIn') {
       scale *= popScale + (1 - popScale) * e;
@@ -110,7 +114,7 @@ export function entranceAt(
 
   if (exit && exit !== 'none' && outDur > 0 && localT > durSec - outDur) {
     const q = clamp01((durSec - localT) / outDur); // 1 → 0 toward the end
-    const k = easeIn(1 - q); // 0 → 1 as it leaves
+    const k = applyEasing(opts.exitEasing ?? 'easeIn', 1 - q); // 0 → 1 as it leaves
     opacity *= q;
     if (exit === 'popOut') {
       scale *= 1 - (1 - popScale) * k; // 1 → popScale

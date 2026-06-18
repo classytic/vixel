@@ -104,8 +104,10 @@ export async function renderAudioMix(spec: VixelSpec): Promise<AudioBuffer | nul
     const vol = Math.max(0, j.gain);
     const end = j.durSec != null ? j.startSec + j.durSec : total;
     if (j.gainEnv && j.gainEnv.length) {
-      // dB ENVELOPE (manual curve / auto-duck) — schedule it as linear-amplitude
-      // ramps, offset to the job's timeline start. Replaces static gain + fades.
+      // dB ENVELOPE (auto-duck OR a manual volume curve) — the envelope IS the volume,
+      // scheduled as linear-amplitude ramps offset to the job's timeline start (the
+      // static gain applies only when there's no envelope). Matches the preview's
+      // `effectiveDb = sample(env)`, so what you hear == what exports.
       g.gain.setValueAtTime(dbToLinear(sampleChannel(j.gainEnv, 0) ?? 0), j.startSec);
       for (const kf of j.gainEnv) {
         if (kf.t > 0) g.gain.linearRampToValueAtTime(dbToLinear(kf.value), j.startSec + kf.t);

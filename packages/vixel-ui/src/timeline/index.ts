@@ -10,6 +10,14 @@ export { TimelineClip } from './primitives/TimelineClip.js';
 export type { TimelineClipProps } from './primitives/TimelineClip.js';
 export { TimelineTransitions } from './primitives/TimelineTransition.js';
 export type { TimelineTransitionsProps, SeamState } from './primitives/TimelineTransition.js';
+export { KeyframeRail } from './primitives/KeyframeRail.js';
+export type { KeyframeRailProps } from './primitives/KeyframeRail.js';
+export { useKeyframeRail } from './controller/hooks/useKeyframeRail.js';
+export type {
+  UseKeyframeRail,
+  KeyframeMarkerState,
+  KeyframeMarkerBinding,
+} from './controller/hooks/useKeyframeRail.js';
 
 export { useTimelineGeometry, useTimelineTracks } from './controller/hooks/useTimeline.js';
 export { useTimelineItemActions } from './controller/hooks/useTimelineItemActions.js';

@@ -21,6 +21,7 @@ import type { SourceRef } from './media.js';
 import type { VisualTransform } from './transform.js';
 import type { Placement } from './layout.js';
 import type { OverlayEnter, OverlayExit, ClipAnimation } from './animation.js';
+import type { ClipMotionTiming } from './motion-feel.js';
 import type { TextLoop } from './text-animation.js';
 import type { TextMotion } from './text-motion.js';
 import type { EffectRef } from './effects/contract.js';
@@ -29,8 +30,10 @@ import type { ShapeKind, ShapeStyle } from './shape.js';
 import type { TransitionRef } from './transitions.js';
 import type { ClipMask } from './mask.js';
 
-/** Compositing blend for a visual clip against what's beneath it. */
-export type BlendMode = 'normal' | 'screen' | 'multiply' | 'overlay';
+/** Compositing blend for a visual clip against what's beneath it.
+ *  Mirrors the common NLE set (CapCut: Normal/Overlay/Screen/Darken/Brighten —
+ *  `darken`/`lighten` are the Darken/Brighten equivalents). */
+export type BlendMode = 'normal' | 'screen' | 'multiply' | 'overlay' | 'darken' | 'lighten';
 
 export interface VideoMedia {
   kind: 'video';
@@ -94,6 +97,9 @@ export interface VisualClip {
   enter?: OverlayEnter;
   /** Exit animation preset. */
   exit?: OverlayExit;
+  /** Entrance/exit TIMING — named feel (Snappy/Bouncy/…) + optional ramp overrides.
+   *  Shapes the `enter`/`exit` motion above; absent ⇒ engine defaults. See `motion-feel`. */
+  motionTiming?: ClipMotionTiming;
   /** Continuous loop animation (text clips) — sampled every frame via `loopAt`. */
   loop?: TextLoop;
   /** High-level motion preset (kenBurns/zoom/pan) — expands to transform keyframes engine-side. */

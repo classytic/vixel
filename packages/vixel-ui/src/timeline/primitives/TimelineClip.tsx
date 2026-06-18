@@ -106,7 +106,10 @@ export function TimelineClip({
         boxSizing: 'border-box',
         touchAction: 'none',
         transform: drag.offsetPx ? `translateX(${drag.offsetPx}px)` : undefined,
-        cursor: drag.dragging ? 'grabbing' : 'grab',
+        // A clip shows the normal arrow at rest (CapCut/Premiere) — the always-on
+        // open-grab-hand read as "broken/heavy". The closed-hand appears only while a
+        // move is actually in progress; the trim edges own `ew-resize` themselves.
+        cursor: drag.dragging ? 'grabbing' : 'default',
         ...style,
       }}
       onPointerDown={(e) => {

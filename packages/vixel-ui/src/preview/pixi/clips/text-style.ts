@@ -121,6 +121,9 @@ export function buildFrontTextStyle(
     wordWrap: true,
     wordWrapWidth: base.wrapWidth,
     breakWords: true,
+    // Honor explicit `\n` (the panel Textarea's Enter) AND auto-wrap long lines —
+    // a text box's contract. (Pixi's default whiteSpace doesn't preserve newlines.)
+    whiteSpace: 'pre-line',
     lineHeight: Math.round(base.fontSize * 1.25),
     ...(stroke ? { stroke: { color: stroke.color, width: stroke.width } } : {}),
     ...(dropShadow ? { dropShadow } : {}),
@@ -147,6 +150,9 @@ export function buildLayerTextStyle(
     wordWrap: true,
     wordWrapWidth: base.wrapWidth,
     breakWords: true,
+    // Honor explicit `\n` (the panel Textarea's Enter) AND auto-wrap long lines —
+    // a text box's contract. (Pixi's default whiteSpace doesn't preserve newlines.)
+    whiteSpace: 'pre-line',
     lineHeight: Math.round(base.fontSize * 1.25),
   };
 }

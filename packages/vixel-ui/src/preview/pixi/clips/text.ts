@@ -140,7 +140,10 @@ export function reconcileTextClip(
   }
   clearTextMotion(node); // back to single-Text path → tear down any prior split
 
-  const textSig = `${lineText}|${fontSize}|${JSON.stringify(ts)}|${getFontEpoch()}|${getTextureEpoch()}`;
+  // `wrapWidth` (from the box width) MUST be in the signature: a side-handle resize
+  // changes `transform.frame.w` (→ wrapWidth) but NOT `ts`, so without it the style
+  // never rebuilds and the text doesn't re-wrap live (only a reload fixed it).
+  const textSig = `${lineText}|${fontSize}|${Math.round(wrapWidth)}|${JSON.stringify(ts)}|${getFontEpoch()}|${getTextureEpoch()}`;
   if (node.textSig !== textSig) {
     text.text = lineText;
     text.style = buildFrontTextStyle(PIXI, design, base, getTex);

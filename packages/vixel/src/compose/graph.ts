@@ -22,7 +22,8 @@ import { resolveTransitionXfade } from './transitions.js';
 import { resolveToPath } from '../core/media-reference.js';
 import { assertSafeColor } from '../core/color.js';
 import { buildEffectsFilter } from '../effects/index.js';
-import { frameToPx, ENTRANCE_DEFAULTS, entranceMotionVec, isSlide } from '@classytic/vixel-schema';
+import { frameToPx, ENTRANCE_DEFAULTS, entranceMotionVec, isSlide, resolveEntranceOptions } from '@classytic/vixel-schema';
+import type { EntranceOptions, Easing } from '@classytic/vixel-schema';
 import type { TimelinePlan } from './timeline.js';
 import type {
   AudioItem,
@@ -95,15 +96,18 @@ function overlayAlphaChain(
   exit: OverlayExit | undefined,
   at: number,
   duration: number,
+  opts: EntranceOptions = {},
 ): string {
   const op = opacity ?? 1;
   // Every non-`none` entrance ramps opacity here (the fade component of the shared
   // entrance model). Slide ALSO gets positional motion via `overlayEntranceSlide`;
   // pop's scale isn't expressible per-frame in the `overlay` filter, so pop
   // degrades to this fade server-side (full slide+pop in the Pixi preview/export).
-  // Durations + curve mirror the schema's `entranceAt`, clamped to ≤ half-duration.
-  const inDur = Math.min(ENTRANCE_DEFAULTS.inDur, duration / 2);
-  const outDur = Math.min(ENTRANCE_DEFAULTS.outDur, duration / 2);
+  // Durations come from the SAME resolved motion feel the Pixi path uses; the opacity
+  // ramp stays LINEAR in both renderers (schema fades opacity linearly too), so only
+  // the duration is feel-driven here, not a curve.
+  const inDur = Math.min(opts.inDur ?? ENTRANCE_DEFAULTS.inDur, duration / 2);
+  const outDur = Math.min(opts.outDur ?? ENTRANCE_DEFAULTS.outDur, duration / 2);
   const fadeIn = enter && enter !== 'none' ? `,fade=t=in:st=${gain(at)}:d=${gain(inDur)}:alpha=1` : '';
   const fadeOut =
     exit && exit !== 'none'
@@ -171,6 +175,8 @@ function ffmpegBlendMode(blend: string | undefined): string | null {
     case 'overlay': return 'overlay';
     case 'soft-light': return 'softlight';
     case 'add': return 'addition';
+    case 'darken': return 'darken';
+    case 'lighten': return 'lighten';
     default: return null;
   }
 }
@@ -202,7 +208,9 @@ function overlayComposite(
   }
   // Box placement (frame top-left), or full-frame centered when boxless.
   const base: OverlayXY = boxGeom ? boxGeom.place : { x: '(W-w)/2', y: '(H-h)/2', quote: false };
-  const xy = formatOverlayXY(overlayEntranceSlide(base, layer.clip.enter, layer.clip.exit, at, duration, W, H));
+  const xy = formatOverlayXY(
+    overlayEntranceSlide(base, layer.clip.enter, layer.clip.exit, at, duration, W, H, resolveEntranceOptions(layer.clip.motionTiming)),
+  );
   return `[${curV}][${ovLabel}]overlay=${xy}:${enable}[${outL}]`;
 }
 
@@ -245,6 +253,40 @@ function formatOverlayXY(p: OverlayXY): string {
  * input UNCHANGED when there's no slide, so non-slide overlays emit a
  * byte-identical filtergraph.
  */
+/**
+ * A named {@link Easing} as an ffmpeg `overlay`-expression over a progress sub-expr
+ * `P` (already clamped to [0,1]). Mirrors the schema's `applyEasing` term-for-term so
+ * the compiled slide curve == `entranceAt` (the parity test in `compose-entrance`
+ * evaluates BOTH numerically). Uses only ffmpeg eval builtins — `pow`, `if`, `lt`,
+ * `gte` — so it's expressible per-frame in the filtergraph. The motion feel
+ * (`motionTiming`) reaches here resolved into {@link EntranceOptions}, exactly like
+ * the Pixi path, so both renderers read ONE contract. */
+function easeExpr(easing: Easing | undefined, P: string): string {
+  switch (easing) {
+    case 'easeIn':
+      return `pow(${P},3)`;
+    case 'easeInOut':
+      return `if(lt(${P},0.5),4*pow(${P},3),1-pow(2-2*(${P}),3)/2)`;
+    case 'easeOutExpo':
+      return `if(gte(${P},1),1,1-pow(2,-10*(${P})))`;
+    case 'easeOutBounce': {
+      const n1 = 7.5625;
+      const d1 = 2.75;
+      const seg = (sub: number, add: number) => `${gain(n1)}*pow((${P})-${gain(sub)},2)+${gain(add)}`;
+      return (
+        `if(lt(${P},${gain(1 / d1)}),${gain(n1)}*pow(${P},2),` +
+        `if(lt(${P},${gain(2 / d1)}),${seg(1.5 / d1, 0.75)},` +
+        `if(lt(${P},${gain(2.5 / d1)}),${seg(2.25 / d1, 0.9375)},${seg(2.625 / d1, 0.984375)})))`
+      );
+    }
+    case 'easeOut':
+      return `(1-pow(1-(${P}),3))`;
+    case 'linear':
+    default:
+      return `(${P})`;
+  }
+}
+
 function overlayEntranceSlide(
   base: OverlayXY,
   enter: OverlayEnter | undefined,
@@ -253,28 +295,32 @@ function overlayEntranceSlide(
   duration: number,
   W: number,
   H: number,
+  opts: EntranceOptions = {},
 ): OverlayXY {
   const slideEnter = isSlide(enter);
   const slideExit = isSlide(exit);
   if (!slideEnter && !slideExit) return base;
 
-  const dist = ENTRANCE_DEFAULTS.distance;
-  const inDur = Math.min(ENTRANCE_DEFAULTS.inDur, duration / 2);
-  const outDur = Math.min(ENTRANCE_DEFAULTS.outDur, duration / 2);
+  const dist = opts.distance ?? ENTRANCE_DEFAULTS.distance;
+  const inDur = Math.min(opts.inDur ?? ENTRANCE_DEFAULTS.inDur, duration / 2);
+  const outDur = Math.min(opts.outDur ?? ENTRANCE_DEFAULTS.outDur, duration / 2);
+  const enterEasing = opts.enterEasing ?? 'easeOut';
+  const exitEasing = opts.exitEasing ?? 'easeIn';
   const enterVec = slideEnter ? entranceMotionVec(enter as string, dist) : { dx: 0, dy: 0 };
   const exitVec = slideExit ? entranceMotionVec(exit as string, dist) : { dx: 0, dy: 0 };
   const end = at + duration;
 
-  // One ramp term `coef·(1−clip(p,0,1))³`, or null when its coefficient is 0.
-  const term = (coef: number, ramp: string): string | null =>
-    coef === 0 ? null : `${gain(coef)}*pow(1-clip(${ramp},0,1),3)`;
-  const enterRamp = inDur > 0 ? `(t-${gain(at)})/${gain(inDur)}` : null;
-  const exitRamp = outDur > 0 ? `(${gain(end)}-t)/${gain(outDur)}` : null;
-  // enter: dx += −m·(1−e); exit: dx += m·k  → coefs in px (×W / ×H).
+  // Time factors mirroring `entranceAt`: enter offset = coef·(1−ease(p)); exit
+  // offset = coef·ease(1−q). p/q are the clamped enter/exit ramps. With the default
+  // easeOut/easeIn these reduce to the historical `(1−ramp)³` (parity guard checks it).
+  const enterP = inDur > 0 ? `clip((t-${gain(at)})/${gain(inDur)},0,1)` : null;
+  const exitQ = outDur > 0 ? `clip((${gain(end)}-t)/${gain(outDur)},0,1)` : null;
+  const enterFactor = enterP ? `(1-(${easeExpr(enterEasing, enterP)}))` : null;
+  const exitFactor = exitQ ? `(${easeExpr(exitEasing, `(1-${exitQ})`)})` : null;
   const axis = (enterCoef: number, exitCoef: number): string | null => {
     const parts: string[] = [];
-    if (enterRamp) { const t = term(enterCoef, enterRamp); if (t) parts.push(t); }
-    if (exitRamp) { const t = term(exitCoef, exitRamp); if (t) parts.push(t); }
+    if (enterFactor && enterCoef !== 0) parts.push(`${gain(enterCoef)}*${enterFactor}`);
+    if (exitFactor && exitCoef !== 0) parts.push(`${gain(exitCoef)}*${exitFactor}`);
     return parts.length ? parts.join('+') : null;
   };
   const offX = axis(-enterVec.dx * W, exitVec.dx * W);
@@ -735,7 +781,7 @@ export function buildComposeGraph({
       // BoxStyle (rounded/border/shadow) is incompatible with the full-frame blend
       // VFX path; only style the alpha-overlay path.
       const bs = blendMode ? undefined : boxStyleByOrder.get(layer.order);
-      const alphaChain = overlayAlphaChain(tf?.opacity, clip.enter, clip.exit, at, duration);
+      const alphaChain = overlayAlphaChain(tf?.opacity, clip.enter, clip.exit, at, duration, resolveEntranceOptions(clip.motionTiming));
       const rotFilter = overlayRotateFilter(tf?.rotation);
       if (bs) {
         // Force the clip to EXACTLY the box px (cover-crop) so the box-sized mask/
@@ -768,7 +814,7 @@ export function buildComposeGraph({
       const boxGeom = overlayBoxGeom(tf?.frame, tf?.fit, W, H);
       const bs = blendMode ? undefined : boxStyleByOrder.get(layer.order);
       const trimStart = media.trimStart ?? 0;
-      const alphaChain = overlayAlphaChain(tf?.opacity, clip.enter, clip.exit, at, duration);
+      const alphaChain = overlayAlphaChain(tf?.opacity, clip.enter, clip.exit, at, duration, resolveEntranceOptions(clip.motionTiming));
       const rotFilter = overlayRotateFilter(tf?.rotation);
       // Trim the source window, then shift PTS so frame 0 lands at global t=at;
       // `enable` gates the composite to the [at, at+duration] window.
@@ -817,7 +863,7 @@ export function buildComposeGraph({
         const k = ovK++;
         const idx = inputs.length;
         inputs.push({ source: png.path, options: ['-loop', '1'] });
-        const alphaChain = overlayAlphaChain(tf?.opacity, clip.enter, clip.exit, at, duration);
+        const alphaChain = overlayAlphaChain(tf?.opacity, clip.enter, clip.exit, at, duration, resolveEntranceOptions(clip.motionTiming));
         const rotFilter = overlayRotateFilter(tf?.rotation);
         parts.push(`[${idx}:v]setsar=1${rotFilter}${alphaChain}[ov${k}]`);
 
@@ -845,7 +891,9 @@ export function buildComposeGraph({
 
         const outL = `ovv${k}`;
         const base: OverlayXY = { x: `${png.xPx}`, y: `${png.yPx}`, quote: false };
-        const xy = formatOverlayXY(overlayEntranceSlide(base, clip.enter, clip.exit, at, duration, W, H));
+        const xy = formatOverlayXY(
+          overlayEntranceSlide(base, clip.enter, clip.exit, at, duration, W, H, resolveEntranceOptions(clip.motionTiming)),
+        );
         parts.push(
           `[${curV}][ov${k}]overlay=${xy}:enable='between(t,${at},${at + duration})'[${outL}]`,
         );

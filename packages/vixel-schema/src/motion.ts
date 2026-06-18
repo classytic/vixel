@@ -14,6 +14,7 @@
  */
 import type { VisualClip } from './visual.js';
 import { entranceAt } from './entrance.js';
+import { resolveEntranceOptions } from './motion-feel.js';
 import { loopAt } from './text-animation.js';
 
 export interface MotionSample {
@@ -34,7 +35,7 @@ export const NEUTRAL_MOTION: MotionSample = { dx: 0, dy: 0, rotation: 0, opacity
  *  `localT` seconds into a clip of `durSec`. Returns {@link NEUTRAL_MOTION}'s values
  *  when nothing is active (cheap). */
 export function sampleClipMotion(clip: VisualClip, localT: number, durSec: number): MotionSample {
-  const e = entranceAt(clip.enter, clip.exit, localT, durSec);
+  const e = entranceAt(clip.enter, clip.exit, localT, durSec, resolveEntranceOptions(clip.motionTiming));
   const lp = loopAt(clip.loop, localT);
   return {
     dx: e.dx + lp.dx,

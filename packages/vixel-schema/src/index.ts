@@ -19,6 +19,8 @@ export * from './captions.js';
 export * from './caption-cues.js';
 export * from './text-presets.js';
 export * from './keyframes.js';
+export * from './keyframe-channels.js';
+export * from './motion-feel.js';
 export * from './random.js';
 export * from './mask.js';
 export * from './transform.js';

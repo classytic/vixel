@@ -153,6 +153,7 @@ export interface ClipPatch {
   media: VisualClip['media'];
   enter: NonNullable<VisualClip['enter']>;
   exit: NonNullable<VisualClip['exit']>;
+  motionTiming: NonNullable<VisualClip['motionTiming']>;
   animation: NonNullable<VisualClip['animation']>;
   effects: NonNullable<VisualClip['effects']>;
   transform: NonNullable<VisualClip['transform']>;
