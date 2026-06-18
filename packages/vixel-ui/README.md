@@ -46,9 +46,9 @@ export function Editor({ spec, onChange }: { spec: VixelSpec; onChange: (s: Vixe
         {(tracks) =>
           tracks.map((t) => (
             <TimelineTrack key={t.index} track={t} className="h-12">
-              {(clip) => (
+              {(item) => (
                 <TimelineClip
-                  clip={clip}
+                  item={item}
                   className="rounded bg-indigo-600 data-[selected=true]:ring-2"
                 />
               )}

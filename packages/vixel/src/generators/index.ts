@@ -255,6 +255,14 @@ export { reframe, buildReframeFilter, ASPECT_DIMENSIONS } from './reframe/index.
 export type { ReframeConfig, ReframeResult, ReframeAspect, ReframeMode } from './reframe/index.js';
 
 // =============================================================================
+// Smart Reframe Generator (subject-tracked 16:9 → 9:16 for auto-shorts)
+// =============================================================================
+
+export { smartReframe, buildSmartReframeFilter, smoothTrack, sampleTrack, cropWindow } from './smart-reframe/index.js';
+
+export type { SmartReframeConfig, SmartReframeResult, SubjectTrackPoint } from './smart-reframe/index.js';
+
+// =============================================================================
 // Fade Generator
 // =============================================================================
 

@@ -31,6 +31,14 @@
       "types": "./dist/preview/index.d.ts",
       "import": "./dist/preview/index.js"
     },
+    "./renderer": {
+      "types": "./dist/preview/pixi/index.d.ts",
+      "import": "./dist/preview/pixi/index.js"
+    },
+    "./export": {
+      "types": "./dist/export/index.d.ts",
+      "import": "./dist/export/index.js"
+    },
     "./styles.css": "./styles.css",
     "./package.json": "./package.json"
   },
@@ -69,24 +77,27 @@
     "access": "public"
   },
   "peerDependencies": {
-    "@classytic/vixel-schema": "^0.1.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "@classytic/vixel-schema": ">=0.2.0",
+    "react": ">=19.0.0",
+    "react-dom": ">=19.0.0"
   },
   "peerDependenciesMeta": {
     "react-dom": {
       "optional": true
     }
   },
-  "optionalDependencies": {
-    "@classytic/react-media": "^0.2.11",
+  "dependencies": {
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
-    "pixi.js": "^8.0.0",
-    "tailwind-merge": "^2.0.0"
+    "tailwind-merge": ">=2.0.0"
+  },
+  "optionalDependencies": {
+    "gifenc": "^1.0.3",
+    "mp4-muxer": ">=5.0.0",
+    "pixi.js": "^8.0.0"
   },
   "devDependencies": {
-    "@classytic/vixel-schema": "^0.1.0",
+    "@classytic/vixel-schema": ">=0.2.0",
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react": "^16.0.0",
     "@types/react": "^19.0.0",
@@ -95,12 +106,14 @@
     "@vitest/coverage-v8": "^4.0.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
+    "gifenc": "^1.0.3",
     "happy-dom": "^20.0.0",
+    "mp4-muxer": ">=5.0.0",
     "pixi.js": "^8.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^2.0.0",
-    "tsdown": "^0.20.3",
+    "tsdown": "^0.22.3",
     "typescript": "^5.3.0",
     "vitest": "^4.0.0"
   },

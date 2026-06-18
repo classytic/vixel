@@ -15,7 +15,7 @@
 import { ConfigError } from '../errors.js';
 import { snapToFrame, toFrames } from '../core/time.js';
 import { resolveToPath } from '../core/media-reference.js';
-import type { Clip, TransitionType } from './schema.js';
+import type { VisualClip, SequenceTransition, SourceRef } from './schema.js';
 
 export interface PlannedClip {
   /** ffmpeg input index. */
@@ -34,7 +34,8 @@ export interface PlannedClip {
 }
 
 export interface PlannedTransition {
-  readonly type: TransitionType;
+  /** Transition id (registry id, or legacy {@link TransitionType}); `none` = hard cut. */
+  readonly type: string;
   /** Overlap (seconds). */
   readonly duration: number;
   /** Absolute offset on the output timeline where the xfade begins. */
@@ -59,36 +60,54 @@ export interface TimelinePlan {
   readonly totalFrames?: number;
 }
 
-/** Resolve a clip's shown duration from `duration` or `out − in`. */
-function clipDuration(clip: Clip): number {
+/** Resolve a clip's shown duration. Every clip is absolutely timed (`duration`). */
+function clipDuration(clip: VisualClip): number {
   if (clip.duration !== undefined) return clip.duration;
-  if (clip.out !== undefined) return Math.max(0, clip.out - (clip.in ?? 0));
-  throw new ConfigError('clip needs `duration` or `out` to know its length', {
-    context: { source: clip.source },
-  });
+  throw new ConfigError('clip needs a `duration` to know its length');
+}
+
+/** A sequential clip's source ref + its trim into the source (video only). */
+function clipSourceRef(clip: VisualClip): { source: SourceRef; trimStart: number } {
+  const m = clip.media;
+  if (m.kind === 'video') return { source: m.source, trimStart: m.trimStart ?? 0 };
+  if (m.kind === 'image') return { source: m.source, trimStart: 0 };
+  throw new ConfigError(`a sequential (main-track) clip must be video or image, got '${m.kind}'`);
 }
 
 /**
- * Plan a video track into trims + xfade offsets (the offset-math source of truth).
+ * Plan a sequential visual lane (the CapCut "main track") into trims + xfade
+ * offsets — the offset-math source of truth.
  *
  * Pass `fps` to make the plan **frame-exact**: every boundary is snapped onto the
  * output frame grid (so cuts land precisely on a frame — no float drift), and the
  * plan carries `frame*` positions + `totalFrames` for a host's zoomable timeline.
  * Omitting `fps` keeps the legacy float-seconds behavior.
  */
-export function planTimeline(clips: Clip[], fps?: number): TimelinePlan {
+/** Resolve the transition on gap i (between clip i-1 and i) from the lane's
+ *  first-class `transitions[]` (clip-level transitions no longer exist). */
+function gapTransition(
+  i: number,
+  trackTransitions: SequenceTransition[] | undefined,
+): { id: string; duration: number } | null {
+  if (!trackTransitions) return null;
+  const s = trackTransitions.find((st) => st.between[0] === i - 1 && st.between[1] === i);
+  return s && s.transition.id !== 'none' ? { id: s.transition.id, duration: s.transition.duration } : null;
+}
+
+export function planTimeline(clips: VisualClip[], fps?: number, trackTransitions?: SequenceTransition[]): TimelinePlan {
   if (clips.length === 0) {
-    throw new ConfigError('a video track needs at least one clip');
+    throw new ConfigError('a visual main track needs at least one clip');
   }
   const snap = fps ? (s: number) => snapToFrame(s, fps) : (s: number) => s;
   const frames = fps ? (s: number) => toFrames(s, fps) : undefined;
 
   const planned: PlannedClip[] = clips.map((clip, i) => {
-    const trimStart = snap(clip.in ?? 0);
+    const { source, trimStart: trim } = clipSourceRef(clip);
+    const trimStart = snap(trim);
     const duration = snap(clipDuration(clip));
     return {
       index: i,
-      source: resolveToPath(clip.source), // string/external → path; missing/generator → throws
+      source: resolveToPath(source), // string/external → path; missing/generator → throws
       trimStart,
       duration,
       volume: clip.volume ?? 1,
@@ -101,8 +120,8 @@ export function planTimeline(clips: Clip[], fps?: number): TimelinePlan {
   let hasTransitions = false;
 
   for (let i = 1; i < clips.length; i++) {
-    const t = clips[i - 1]!.transition; // transition INTO clip i
-    const dur = t && t.type !== 'none' ? snap(Math.max(0, t.duration)) : 0;
+    const gap = gapTransition(i, trackTransitions); // transition INTO clip i
+    const dur = gap ? snap(Math.max(0, gap.duration)) : 0;
     if (dur > 0) {
       hasTransitions = true;
       // xfade needs both inputs strictly longer than the overlap.
@@ -115,7 +134,7 @@ export function planTimeline(clips: Clip[], fps?: number): TimelinePlan {
     }
     const offset = Math.max(0, runningEnd - dur);
     transitions.push({
-      type: t?.type ?? 'none',
+      type: gap?.id ?? 'none',
       duration: dur,
       offset,
       ...(frames ? { frameDuration: frames(dur), frameOffset: frames(offset) } : {}),

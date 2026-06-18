@@ -6,7 +6,7 @@
  * live in the package; a client app turns on the subset it needs via
  * {@link FeatureConfig}.
  */
-import type { VixelSpec, Track } from '@classytic/vixel-schema';
+import type { VixelSpec, Track, VisualClip, AudioItem } from '@classytic/vixel-schema';
 
 /**
  * Which editor capabilities are exposed in this mount. Capabilities always
@@ -18,9 +18,9 @@ export interface FeatureConfig {
   transitions?: boolean;
   /** Ken-Burns / zoom / pan clip animation UI. */
   kenBurns?: boolean;
-  /** Caption (text overlay + cues) editing. */
+  /** Caption (text clip + cues) editing. */
   captions?: boolean;
-  /** Image/text overlay tracks. */
+  /** Extra visual lanes beyond the main track (text/image/video/shape on their own lanes). */
   overlays?: boolean;
   /** Multiple audio tracks (music / voice / sfx). */
   multiTrackAudio?: boolean;
@@ -38,16 +38,26 @@ export const ALL_FEATURES: Required<FeatureConfig> = {
   effects: true,
 };
 
-/** Discriminates which kind of timeline item a {@link SelectionRef} points at. */
-export type SelectionKind = 'clip' | 'overlay' | 'audio';
+/**
+ * Discriminates which kind of timeline item a {@link SelectionRef} points at.
+ * Every visual lane item is a `clip` (image/video/text/shape/effect — the kind is
+ * `clip.media.kind`); audio items are `audio`.
+ */
+export type SelectionKind = 'clip' | 'audio';
 
 /** A pointer into the spec identifying the currently-selected item, or `null`. */
 export interface SelectionRef {
   kind: SelectionKind;
   /** Index into `spec.tracks`. */
   trackIndex: number;
-  /** Index into that track's `clips` / `items`. */
+  /** Index into that lane's `clips` / `items`. */
   itemIndex: number;
+}
+
+/** A transition seam — the gap between clips `gap` and `gap + 1` of a sequential visual lane. */
+export interface SeamRef {
+  trackIndex: number;
+  gap: number;
 }
 
 /** The full editor state held by the store. */
@@ -56,6 +66,8 @@ export interface EditorState {
   spec: VixelSpec;
   /** Currently-selected item, or `null`. */
   selection: SelectionRef | null;
+  /** Currently-selected transition seam (gap between clips `gap`/`gap+1`), or `null`. */
+  selectedSeam: SeamRef | null;
   /** Playhead position in seconds. */
   playheadSec: number;
   /** Total composition duration in seconds (derived from `spec`). */
@@ -64,6 +76,9 @@ export interface EditorState {
   pxPerSec: number;
   /** Whether preview playback is running. */
   isPlaying: boolean;
+  /** Whether there is an edit to undo / redo (drives toolbar buttons). */
+  canUndo: boolean;
+  canRedo: boolean;
   /** Enabled capabilities for this mount. */
   features: Required<FeatureConfig>;
 }
@@ -77,33 +92,70 @@ export interface EditorActions {
   /** Ask the host to export the current spec (fires `onExport`). */
   requestExport: () => void;
 
+  // ── history (undo / redo) ──
+  /** Revert the last edit (rapid bursts like a drag coalesce into one step). */
+  undo: () => void;
+  /** Re-apply the last undone edit. */
+  redo: () => void;
+  /** Drop all history (e.g. after an external spec replacement / fresh load). */
+  clearHistory: () => void;
+
   // ── selection / transport (UI state) ──
   select: (ref: SelectionRef | null) => void;
+  /** Select a transition seam (clears item selection); `null` to deselect. */
+  selectSeam: (seam: SeamRef | null) => void;
+  /** Set (or clear) the transition on a seam — writes `VisualTrack.transitions[]`. */
+  setTransition: (trackIndex: number, gap: number, ref: import('@classytic/vixel-schema').TransitionRef | null) => void;
   setPlayhead: (sec: number) => void;
   setZoom: (pxPerSec: number) => void;
   play: () => void;
   pause: () => void;
   togglePlay: () => void;
 
-  // ── clip edits (video track) ──
+  // ── clip edits (any visual lane) ──
   updateClip: (trackIndex: number, clipIndex: number, patch: Partial<ClipPatch>) => void;
+  /** Reorder a clip within a sequential lane (re-flows `at`). */
   moveClip: (trackIndex: number, fromIndex: number, toIndex: number) => void;
   removeClip: (trackIndex: number, clipIndex: number) => void;
+  /** Split a clip at `tInSec` into its on-screen duration → two clips. */
+  splitClip: (trackIndex: number, clipIndex: number, tInSec: number) => void;
+  /** Duplicate a clip in place (a copy right after it). */
+  duplicateClip: (trackIndex: number, clipIndex: number) => void;
+  /** Add a clip on its OWN new visual lane (defaults to the top lane). */
+  addClipInNewLane: (clip: VisualClip, laneIndex?: number) => void;
+  /**
+   * Smart-place a clip at its `at` (CapCut-style): REUSE a compatible lane's free
+   * gap before spawning a new lane — so repeatedly adding effects/overlays packs
+   * them onto existing lanes instead of stacking a fresh lane each time.
+   */
+  addClipAuto: (clip: VisualClip) => void;
+  /** Move a whole visual lane to another stacking position (re-layering). */
+  moveLane: (fromIndex: number, toIndex: number) => void;
 
-  // ── overlay / audio edits (globally-timed tracks) ──
-  updateTrackItem: (trackIndex: number, itemIndex: number, patch: Record<string, unknown>) => void;
-  removeTrackItem: (trackIndex: number, itemIndex: number) => void;
+  // ── audio edits ──
+  updateAudioItem: (trackIndex: number, itemIndex: number, patch: Partial<AudioItem>) => void;
+  removeAudioItem: (trackIndex: number, itemIndex: number) => void;
+
+  // ── add content (appends to the first matching lane, creating it if absent) ──
+  addClip: (clip: VisualClip) => void;
+  addAudioItem: (item: AudioItem) => void;
+  /** Patch the composition output (size / fps / background). */
+  setOutput: (patch: Partial<VixelSpec['output']>) => void;
 }
 
-/** Patchable clip fields (subset of vixel's `Clip` an editor mutates directly). */
+/** Patchable clip fields (subset of a {@link VisualClip} an editor mutates directly). */
 export interface ClipPatch {
-  in: number;
-  out: number;
+  at: number;
   duration: number;
   volume: number;
-  fit: NonNullable<import('@classytic/vixel-schema').Clip['fit']>;
-  transition: NonNullable<import('@classytic/vixel-schema').Clip['transition']>;
-  animation: NonNullable<import('@classytic/vixel-schema').Clip['animation']>;
+  muted: boolean;
+  hidden: boolean;
+  media: VisualClip['media'];
+  enter: NonNullable<VisualClip['enter']>;
+  exit: NonNullable<VisualClip['exit']>;
+  animation: NonNullable<VisualClip['animation']>;
+  effects: NonNullable<VisualClip['effects']>;
+  transform: NonNullable<VisualClip['transform']>;
 }
 
 /** Props for the {@link VixelEditor} root — the props-in client boundary. */

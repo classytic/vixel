@@ -5,6 +5,7 @@ export {
   useShallowEditorState,
   useEditorActions,
   useEditorSpec,
+  useSelectedItem,
 } from './controller/hooks/useEditorStore.js';
 export { useFeature } from './controller/hooks/useFeature.js';
 

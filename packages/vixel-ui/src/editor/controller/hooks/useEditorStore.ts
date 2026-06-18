@@ -35,11 +35,16 @@ export function useShallowEditorState<T extends object>(selector: (state: Editor
     const next = selectorRef.current(store.getState());
     const prev = prevRef.current;
     if (prev !== null) {
-      let equal = true;
-      for (const key in next) {
-        if (!Object.is(prev[key], next[key])) {
-          equal = false;
-          break;
+      // Compare key COUNT first: a fixed-shape selector is the common case, but
+      // this is public API — a selector whose key set shrinks/grows between calls
+      // must not be treated as equal just because every key in `next` matched.
+      let equal = Object.keys(prev).length === Object.keys(next).length;
+      if (equal) {
+        for (const key in next) {
+          if (!Object.is(prev[key], next[key])) {
+            equal = false;
+            break;
+          }
         }
       }
       if (equal) return prev;
@@ -61,4 +66,23 @@ export function useEditorActions(): EditorActions {
 /** Convenience: the current spec (re-renders when the spec identity changes). */
 export function useEditorSpec() {
   return useEditorState((s) => s.spec);
+}
+
+/**
+ * The currently-selected timeline item (a visual clip or an audio item) + its
+ * selection ref, or `{ selection: null, item: null }`. Shallow-compared so it
+ * only re-renders when the selection or the item's reference changes.
+ */
+export function useSelectedItem() {
+  return useShallowEditorState((s) => {
+    const sel = s.selection;
+    const track = sel ? s.spec.tracks[sel.trackIndex] : undefined;
+    const item =
+      sel && track
+        ? track.type === 'visual'
+          ? track.clips[sel.itemIndex]
+          : track.items[sel.itemIndex]
+        : undefined;
+    return { selection: sel, item: item ?? null };
+  });
 }

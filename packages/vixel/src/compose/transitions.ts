@@ -1,47 +1,33 @@
 /**
- * Transition presets — the catalog as DATA.
- * =========================================
- * CapCut-flavored, intent-level transition names mapped to the `xfade` filter
- * that renders them, plus an advisory default duration. This catalog is the
- * shared contract: vixel renders from it, and a host editor (or a browser
- * preview) can read the same names/durations to drive its UI — without ever
- * importing a renderer. The spec stays declarative; the `xfade` mapping is an
- * internal detail surfaced only as data.
- *
- * Raw `xfade` names (e.g. `dissolve`, `wipeleft`) still pass straight through —
- * presets are additive friendly aliases, not a replacement.
+ * Transition resolver registry — the ffmpeg side of the transition catalog.
+ * =========================================================================
+ * The catalog itself is DATA in the schema ({@link BUILTIN_TRANSITIONS} — id,
+ * name, family, `ffmpeg.xfade`, `gl.shader`). This module owns only the
+ * RESOLVER: id → concrete `xfade` name, seeded from the catalog, extensible via
+ * {@link registerTransition} (BYO). A GL/shader tier is a later capability
+ * (ARCHITECTURE.md P6). One source of truth — no parallel preset table.
  */
+import { BUILTIN_TRANSITIONS } from '@classytic/vixel-schema';
 
-export interface TransitionPresetDef {
-  /** The underlying ffmpeg `xfade` transition this preset renders as. */
-  xfade: string;
-  /** Advisory default overlap (seconds) for hosts/UI. compose uses the spec's `duration`. */
-  defaultDuration: number;
-  /** One-line description for tooling / pickers. */
-  description: string;
+/** Builds an `xfade` name (the fast/native tier) for a transition id + params. */
+export type TransitionResolver = (params?: Record<string, number | string | boolean>) => string;
+
+const REGISTRY = new Map<string, TransitionResolver>(
+  BUILTIN_TRANSITIONS.filter((d) => d.ffmpeg?.xfade).map((d) => [d.id, () => d.ffmpeg!.xfade!] as const),
+);
+
+/** Register a BYO transition's ffmpeg `xfade` resolver, keyed by descriptor id. */
+export function registerTransition(id: string, build: TransitionResolver): void {
+  REGISTRY.set(id, build);
 }
 
-/** Friendly, intent-level transition presets → `xfade` parameters. */
-export const TRANSITION_PRESETS = {
-  'whip-pan': { xfade: 'smoothleft', defaultDuration: 0.3, description: 'Fast horizontal whip between shots' },
-  'zoom-blur': { xfade: 'zoomin', defaultDuration: 0.5, description: 'Punch-in zoom into the next shot' },
-  'blur': { xfade: 'hblur', defaultDuration: 0.4, description: 'Soft motion-blur cross' },
-  'glitch': { xfade: 'pixelize', defaultDuration: 0.3, description: 'Pixelated digital glitch cut' },
-  'radial': { xfade: 'radial', defaultDuration: 0.6, description: 'Clock-wipe sweep' },
-  'ripple': { xfade: 'distance', defaultDuration: 0.5, description: 'Organic distance morph' },
-  'squeeze': { xfade: 'squeezeh', defaultDuration: 0.4, description: 'Horizontal squeeze' },
-  'iris': { xfade: 'circleopen', defaultDuration: 0.6, description: 'Circular iris open' },
-} as const satisfies Record<string, TransitionPresetDef>;
-
-export type TransitionPreset = keyof typeof TRANSITION_PRESETS;
-
 /**
- * Resolve any transition type to its concrete `xfade` name: presets map through
- * the catalog, `none` becomes a benign `fade` (the overlap is already a cut at
- * the plan level), and raw `xfade` names pass straight through.
+ * Resolve a transition id → concrete `xfade` name. Registry (BUILTIN + BYO)
+ * first, then a raw passthrough (so a literal `xfade` name still works); `none`
+ * → benign `fade` (the overlap is already a hard cut at the plan level).
  */
-export function resolveXfadeName(type: string): string {
-  if (type === 'none') return 'fade';
-  const preset = (TRANSITION_PRESETS as Record<string, TransitionPresetDef>)[type];
-  return preset ? preset.xfade : type;
+export function resolveTransitionXfade(id: string, params?: Record<string, number | string | boolean>): string {
+  if (id === 'none') return 'fade';
+  const r = REGISTRY.get(id);
+  return r ? r(params) : id;
 }

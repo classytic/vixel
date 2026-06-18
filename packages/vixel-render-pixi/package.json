@@ -1,0 +1,81 @@
+{
+  "name": "@classytic/vixel-render-pixi",
+  "version": "0.1.0",
+  "description": "Premium WYSIWYG server export for vixel — renders the same Pixi scene as the editor through a headless browser, so gl-transitions/shapes/shaders match the preview byte-for-byte. Opt-in: bring your own browser driver.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown && tsc --emitDeclarationOnly --outDir dist",
+    "dev": "tsdown --watch",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "vixel",
+    "video",
+    "pixi",
+    "headless",
+    "export",
+    "gl-transitions",
+    "wysiwyg",
+    "playwright",
+    "puppeteer"
+  ],
+  "author": "Classytic",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/classytic/vixel-render-pixi.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@classytic/vixel-schema": ">=0.2.0"
+  },
+  "peerDependencies": {
+    "@classytic/vixel": ">=0.6.0",
+    "@classytic/vixel-ui": ">=0.1.0",
+    "playwright-core": ">=1.40.0",
+    "puppeteer-core": ">=21.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@classytic/vixel": {
+      "optional": true
+    },
+    "@classytic/vixel-ui": {
+      "optional": true
+    },
+    "playwright-core": {
+      "optional": true
+    },
+    "puppeteer-core": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "tsdown": "^0.22.3",
+    "typescript": "^5.3.0",
+    "vitest": "^4.0.0"
+  }
+}

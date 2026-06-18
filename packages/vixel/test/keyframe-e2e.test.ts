@@ -33,16 +33,33 @@ describe('keyframed overlay motion (real render)', () => {
       version: 1,
       output: { width: 640, height: 360, fps: 24 },
       tracks: [
-        { type: 'video', clips: [{ source: A, duration: 2 }] },
+        { type: 'visual', sequential: true, clips: [{ media: { kind: 'video', source: A }, at: 0, duration: 2 }] },
         {
-          type: 'overlay',
-          items: [{
-            kind: 'image', source: sticker, at: 0, duration: 2, width: 0.15,
-            motion: [
-              { t: 0, x: 0.1, y: 0.1 },
-              { t: 1, x: 0.9, y: 0.2, easing: 'easeInOut' },
-              { t: 2, x: 0.5, y: 0.9, easing: 'easeOut' },
-            ],
+          // A keyframed sticker: x/y travel via `transform.keyframes` (the unified
+          // motion model; legacy `motion[]` is gone). NOTE: the ffmpeg export path
+          // currently renders the overlay STATICALLY at its resting `frame` — animated
+          // x/y travel on export is a known gap (the Pixi preview animates it). This
+          // test verifies a keyframed-overlay spec composes to a valid MP4.
+          type: 'visual',
+          clips: [{
+            media: { kind: 'image', source: sticker },
+            at: 0,
+            duration: 2,
+            transform: {
+              frame: { x: 0.1, y: 0.1, w: 0.15, h: 0.15 },
+              keyframes: {
+                x: [
+                  { t: 0, value: 0.1 },
+                  { t: 1, value: 0.9, easing: 'easeInOut' },
+                  { t: 2, value: 0.5, easing: 'easeOut' },
+                ],
+                y: [
+                  { t: 0, value: 0.1 },
+                  { t: 1, value: 0.2, easing: 'easeInOut' },
+                  { t: 2, value: 0.9, easing: 'easeOut' },
+                ],
+              },
+            },
           }],
         },
       ],

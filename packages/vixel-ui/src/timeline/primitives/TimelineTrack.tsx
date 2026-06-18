@@ -19,6 +19,7 @@ export function TimelineTrack({ track, children, className, style, ...props }: T
       data-vixel-track=""
       data-track-type={track.type}
       data-track-index={track.index}
+      data-track-lane={track.lane}
       style={{ position: 'relative', ...style }}
       {...props}
     >

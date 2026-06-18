@@ -76,6 +76,41 @@ function tagColor(hex: string): string {
   return `&H${hexToAssBgr(hex)}&`;
 }
 
+/**
+ * Override prefix for a GLOW pass — a soft, blurred, colored blob meant to be
+ * drawn on a LOWER layer behind the sharp text (so a halo bleeds out around the
+ * glyphs). `sigma` drives `\blur`, with a matching colored border for spread;
+ * `intensity` softens the layer's alpha. The caller renders the same text with
+ * this prefix at a lower ASS layer, then the normal styled text on top.
+ */
+export function glowOverride(glow: { color: string; sigma?: number; intensity?: number }): string {
+  const sigma = Math.max(1, glow.sigma ?? 6);
+  // A THIN colored border seeds the halo; the blur does the spreading. A fat
+  // border reads as a chunky offset blob (especially top-anchored), not a glow.
+  const bord = Math.max(1, Math.round(sigma / 4));
+  const c = tagColor(glow.color);
+  // alpha 00 = opaque; weaker intensity → more transparent halo.
+  const alpha = Math.round(Math.max(0, Math.min(255, 255 * (1 - Math.min(1, glow.intensity ?? 1)))));
+  const aHex = alpha.toString(16).padStart(2, '0').toUpperCase();
+  return `{\\blur${sigma}\\bord${bord}\\shad0\\1c${c}\\3c${c}\\alpha&H${aHex}&}`;
+}
+
+/**
+ * Override for a SOFT DROP-SHADOW pass — a blurred, offset, shadow-colored copy
+ * of the glyphs with the fill + outline made fully transparent (only the shadow
+ * shows). Rendered on a LOWER layer behind the sharp text, mirroring the Pixi
+ * preview's `dropShadow` (offset by `depth`, blurred by `blur`). For `blur:0`
+ * the engine's hard Style shadow already matches, so this pass is only emitted
+ * when `blur` is set.
+ */
+export function shadowOverride(shadow: { depth: number; color: string; blur?: number }): string {
+  const blur = Math.max(0, shadow.blur ?? 0);
+  const depth = Math.max(0, shadow.depth ?? 2);
+  const c = tagColor(shadow.color);
+  // \1a/\3a transparent (hide fill + outline); \4a opaque shadow in \4c, blurred.
+  return `{\\bord0\\shad${depth}\\blur${blur}\\1a&HFF&\\3a&HFF&\\4a&H00&\\4c${c}}`;
+}
+
 /** Scale (%) the active word grows to in highlight modes. */
 const HIGHLIGHT_SCALE = 112;
 /** Smoothing for highlight color/scale transitions (ms). */
@@ -119,8 +154,12 @@ export function buildStyleLine(style: TextStyle, opts: { name?: string; alignNum
   const shadow = style.shadow?.depth ?? 0;
   const bold = style.bold ? -1 : 0;
   const italic = style.italic ? -1 : 0;
+  const underline = style.underline ? -1 : 0;
   const spacing = style.letterSpacing ?? 0;
-  const align = opts.alignNumpad ?? ALIGN_NUMPAD[style.alignment ?? DEFAULTS.alignment];
+  // Numpad encodes BOTH axes: ALIGN_NUMPAD gives the vertical (center column);
+  // horizontal `align` shifts ∓1 within the row (left/center/right).
+  const hOff = style.align === 'left' ? -1 : style.align === 'right' ? 1 : 0;
+  const align = (opts.alignNumpad ?? ALIGN_NUMPAD[style.alignment ?? DEFAULTS.alignment]) + hOff;
   const marginV = style.marginV ?? DEFAULTS.marginV;
 
   // Format: Name,Fontname,Fontsize,Primary,Secondary,Outline,Back,Bold,Italic,
@@ -136,7 +175,7 @@ export function buildStyleLine(style: TextStyle, opts: { name?: string; alignNum
     backColour,
     bold,
     italic,
-    0,
+    underline,
     0,
     100,
     100,

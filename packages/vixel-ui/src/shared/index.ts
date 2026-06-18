@@ -9,24 +9,37 @@ export {
 } from './utils/time.js';
 
 export {
-  isVideoTrack,
-  isOverlayTrack,
+  isVisualTrack,
   isAudioTrack,
-  clipDuration,
-  layoutVideoTrack,
+  layoutLane,
+  reflowSequential,
   totalDurationSec,
   withTrack,
   withClipPatch,
   withClipMoved,
   withClipRemoved,
-  withItemPatch,
-  withItemRemoved,
+  withAudioPatch,
+  withAudioRemoved,
+  withTrackMoved,
+  withClipInserted,
+  withClipInNewLane,
+  withClipMovedToLane,
+  withClipMovedToNewLane,
+  withClipSplit,
+  withClipDuplicated,
+  withClipAppended,
+  withAudioItemAppended,
+  withOutputPatch,
+  withTransition,
 } from './utils/spec.js';
 
 export type { ClipLayout } from './utils/spec.js';
 
 export { cn } from './utils/cn.js';
 export type { ClassValue } from './utils/cn.js';
+
+export { useTransformDrag, applyResize, applyResizeRotated, normalizeAngle } from './transform/useTransformDrag.js';
+export type { TransformMode, TransformDragConfig } from './transform/useTransformDrag.js';
 
 export {
   timelineVariants,

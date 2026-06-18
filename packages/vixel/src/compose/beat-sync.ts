@@ -13,7 +13,7 @@
 
 import { spawn } from 'node:child_process';
 import type { VideoSource } from '../types/generators.js';
-import type { VixelSpec, Clip } from './schema.js';
+import type { VixelSpec, VisualClip } from './schema.js';
 import { FFmpegError, ConfigError } from '../errors.js';
 
 export interface DetectBeatsConfig {
@@ -176,18 +176,21 @@ export function beatSyncSpec(opts: BeatSyncOptions): VixelSpec {
   // Cut boundaries: the kept beats at/after startSec, every Nth.
   const boundaries = opts.beats.filter((b) => b >= startSec).filter((_, i) => i % everyNth === 0);
 
-  const clips: Clip[] = [];
+  const clips: VisualClip[] = [];
   let srcIdx = 0;
+  let at = 0;
   for (let i = 0; i < boundaries.length - 1; i++) {
     const duration = Number((boundaries[i + 1]! - boundaries[i]!).toFixed(3));
     if (duration < minClip) continue;
     const source = loop ? sources[srcIdx % sources.length]! : sources[srcIdx];
     if (source === undefined) break; // ran out of sources and not looping
-    clips.push({ source, duration });
+    // Every clip is absolutely timed: lay them end-to-end (the sequential main track).
+    clips.push({ media: { kind: 'video', source }, at: Number(at.toFixed(3)), duration });
+    at += duration;
     srcIdx++;
   }
 
-  const tracks: VixelSpec['tracks'] = [{ type: 'video', clips }];
+  const tracks: VixelSpec['tracks'] = [{ type: 'visual', sequential: true, clips }];
   if (opts.audioSource) {
     tracks.push({ type: 'audio', items: [{ source: opts.audioSource, role: 'music' }] });
   }

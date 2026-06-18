@@ -1,6 +1,6 @@
 {
   "name": "@classytic/vixel-schema",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The VixelSpec composition contract — zero-dependency, agent-emittable TypeScript types shared by vixel (engine), vixel-ui (editor), and agents. No ffmpeg, no React.",
   "type": "module",
   "main": "./dist/index.js",
@@ -10,6 +10,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./validate": {
+      "types": "./dist/validate.d.ts",
+      "import": "./dist/validate.js"
     },
     "./package.json": "./package.json"
   },
@@ -49,9 +53,18 @@
   "engines": {
     "node": ">=18.0.0"
   },
+  "peerDependencies": {
+    "zod": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "zod": {
+      "optional": true
+    }
+  },
   "devDependencies": {
-    "tsdown": "^0.20.3",
+    "tsdown": "^0.22.3",
     "typescript": "^5.3.0",
-    "vitest": "^4.0.0"
+    "vitest": "^4.0.0",
+    "zod": "^4.0.0"
   }
 }

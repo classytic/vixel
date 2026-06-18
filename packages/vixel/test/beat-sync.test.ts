@@ -48,11 +48,13 @@ describe('beatSyncSpec', () => {
       beats: [0, 1, 2, 3], // three 1s intervals
       output,
     });
-    const clips = (spec.tracks[0] as { clips: { source: string; duration: number }[] }).clips;
-    expect(clips).toEqual([
-      { source: 'a.mp4', duration: 1 },
-      { source: 'b.mp4', duration: 1 },
-      { source: 'a.mp4', duration: 1 }, // looped
+    const track = spec.tracks[0] as { type: string; sequential?: boolean; clips: { media: { kind: string; source: string }; at: number; duration: number }[] };
+    expect(track.type).toBe('visual');
+    expect(track.sequential).toBe(true);
+    expect(track.clips).toEqual([
+      { media: { kind: 'video', source: 'a.mp4' }, at: 0, duration: 1 },
+      { media: { kind: 'video', source: 'b.mp4' }, at: 1, duration: 1 },
+      { media: { kind: 'video', source: 'a.mp4' }, at: 2, duration: 1 }, // looped
     ]);
   });
 

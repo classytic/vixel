@@ -18,14 +18,18 @@
  *   version: 1,
  *   output: { width: 1080, height: 1920, fps: 30 },
  *   tracks: [
- *     { type: 'video', clips: [
- *       { source: 'a.mp4', duration: 3, transition: { type: 'dissolve', duration: 0.5 },
- *         animation: { preset: 'kenBurns', direction: 'in' } },
- *       { source: 'b.mp4', duration: 3 },
- *     ]},
- *     { type: 'audio',   items: [{ source: 'music.mp3', role: 'music', duck: { amount: -12 } }] },
- *     { type: 'overlay', items: [{ kind: 'text', at: 0, duration: 3, text: 'hi there',
- *         style: { animation: 'highlight', highlightColor: '#39FF14' } }] },
+ *     { type: 'visual', sequential: true,
+ *       clips: [
+ *         { media: { kind: 'video', source: 'a.mp4' }, at: 0, duration: 3,
+ *           animation: { preset: 'kenBurns', direction: 'in' } },
+ *         { media: { kind: 'video', source: 'b.mp4' }, at: 3, duration: 3 },
+ *       ],
+ *       transitions: [{ between: [0, 1], transition: { id: 'dissolve', duration: 0.5 } }],
+ *     },
+ *     { type: 'audio', items: [{ source: 'music.mp3', role: 'music', duck: { amount: -12 } }] },
+ *     // text on a higher lane = on top (positional stacking, no z)
+ *     { type: 'visual', clips: [{ media: { kind: 'text', text: 'hi there',
+ *         style: { animation: 'highlight', highlightColor: '#39FF14' } }, at: 0, duration: 3 }] },
  *   ],
  * }, 'out.mp4');
  * ```
@@ -274,6 +278,12 @@ export {
   reframe,
   buildReframeFilter,
   ASPECT_DIMENSIONS,
+  // Smart Reframe Generator (subject-tracked, for auto-shorts)
+  smartReframe,
+  buildSmartReframeFilter,
+  smoothTrack,
+  sampleTrack,
+  cropWindow,
   // Fade Generator
   fade,
   buildFadeFilters,
@@ -395,6 +405,10 @@ export type {
   ReframeResult,
   ReframeAspect,
   ReframeMode,
+  // Smart Reframe types
+  SmartReframeConfig,
+  SmartReframeResult,
+  SubjectTrackPoint,
   // Fade types
   FadeConfig,
   FadeResult,

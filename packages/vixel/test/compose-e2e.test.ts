@@ -45,11 +45,13 @@ describe('compose (real render)', () => {
       output: { width: 854, height: 480, fps: 24 },
       tracks: [
         {
-          type: 'video',
+          type: 'visual',
+          sequential: true,
           clips: [
-            { source: A, duration: 2, transition: { type: 'dissolve', duration: 0.5 } },
-            { source: B, duration: 2 },
+            { media: { kind: 'video', source: A }, at: 0, duration: 2 },
+            { media: { kind: 'video', source: B }, at: 2, duration: 2 },
           ],
+          transitions: [{ between: [0, 1], transition: { id: 'dissolve', duration: 0.5 } }],
         },
       ],
     };
@@ -71,7 +73,10 @@ describe('compose (real render)', () => {
     const spec: VixelSpec = {
       version: 1,
       output: { width: 1080, height: 1920, fps: 30 },
-      tracks: [{ type: 'video', clips: [{ source: A, duration: 2 }, { source: B, duration: 2 }] }],
+      tracks: [{ type: 'visual', sequential: true, clips: [
+        { media: { kind: 'video', source: A }, at: 0, duration: 2 },
+        { media: { kind: 'video', source: B }, at: 2, duration: 2 },
+      ] }],
     };
     await compose(spec, '/tmp/never.mp4', { dryRun: true, onCommand: (c) => (args = c.args) });
     expect(args).toContain('-filter_complex');
@@ -83,10 +88,13 @@ describe('compose (real render)', () => {
     const spec: VixelSpec = {
       version: 1,
       output: { width: 640, height: 360, fps: 24 },
-      tracks: [{ type: 'video', clips: [
-        { source: A, duration: 2, transition: { type: 'dissolve', duration: 0.5 } },
-        { source: B, duration: 2, transition: { type: 'wipeleft', duration: 0.5 } },
-        { source: A, duration: 2 },
+      tracks: [{ type: 'visual', sequential: true, clips: [
+        { media: { kind: 'video', source: A }, at: 0, duration: 2 },
+        { media: { kind: 'video', source: B }, at: 2, duration: 2 },
+        { media: { kind: 'video', source: A }, at: 4, duration: 2 },
+      ], transitions: [
+        { between: [0, 1], transition: { id: 'dissolve', duration: 0.5 } },
+        { between: [1, 2], transition: { id: 'wipeleft', duration: 0.5 } },
       ] }],
     };
     const res = await compose(spec, out, { preset: 'ultrafast', crf: 32 });
@@ -101,7 +109,7 @@ describe('compose (real render)', () => {
       version: 1,
       output: { width: 640, height: 360, fps: 24 },
       tracks: [
-        { type: 'video', clips: [{ source: A, duration: 3 }] },
+        { type: 'visual', sequential: true, clips: [{ media: { kind: 'video', source: A }, at: 0, duration: 3 }] },
         { type: 'audio', items: [{ source: tone, role: 'music', gain: 0.5, duck: { amount: -12 } }] },
       ],
     };
@@ -116,7 +124,7 @@ describe('compose (real render)', () => {
     const spec: VixelSpec = {
       version: 1,
       output: { width: 640, height: 360, fps: 24 },
-      tracks: [{ type: 'video', clips: [{ source: A, duration: 9999 }] }], // way past the fixture
+      tracks: [{ type: 'visual', sequential: true, clips: [{ media: { kind: 'video', source: A }, at: 0, duration: 9999 }] }], // way past the fixture
     };
     await expect(compose(spec, join(workDir, 'x.mp4'), { preset: 'ultrafast' })).rejects.toThrow();
   }, 30_000);
@@ -127,8 +135,8 @@ describe('compose (real render)', () => {
       version: 1,
       output: { width: 640, height: 360, fps: 24 },
       tracks: [
-        { type: 'video', clips: [{ source: A, duration: 2, animation: { preset: 'kenBurns', direction: 'in', amount: 0.2 } }] },
-        { type: 'overlay', items: [{ kind: 'image', source: logo, at: 0, duration: 2, position: 'top-right', width: 0.2, in: 'fadeIn', out: 'fadeOut' }] },
+        { type: 'visual', sequential: true, clips: [{ media: { kind: 'video', source: A }, at: 0, duration: 2, animation: { preset: 'kenBurns', direction: 'in', amount: 0.2 } }] },
+        { type: 'visual', clips: [{ media: { kind: 'image', source: logo }, at: 0, duration: 2, transform: { frame: { x: 0.78, y: 0.02, w: 0.2, h: 0.12 } }, enter: 'fadeIn', exit: 'fadeOut' }] },
       ],
     };
     const res = await compose(spec, out, { preset: 'ultrafast', crf: 32 });
@@ -144,16 +152,21 @@ describe('compose (real render)', () => {
       version: 1,
       output: { width: 854, height: 480, fps: 24 },
       tracks: [
-        { type: 'video', clips: [{ source: A, duration: 2 }] },
+        { type: 'visual', sequential: true, clips: [{ media: { kind: 'video', source: A }, at: 0, duration: 2 }] },
         {
-          type: 'overlay',
-          items: [{
-            kind: 'text', at: 0, duration: 1.5, text: 'hi there',
-            position: 'bottom',
-            style: { fontSize: 64, bold: true, fillColor: '#FFFFFF', highlightColor: '#39FF14', animation: 'highlight' },
-            cues: [{ text: 'hi there', startMs: 0, endMs: 1500, words: [
-              { text: 'hi', startMs: 0, endMs: 750 }, { text: 'there', startMs: 750, endMs: 1500 },
-            ] }],
+          type: 'visual',
+          clips: [{
+            media: {
+              kind: 'text',
+              text: 'hi there',
+              style: { fontSize: 64, bold: true, fillColor: '#FFFFFF', highlightColor: '#39FF14', animation: 'highlight' },
+              cues: [{ text: 'hi there', startMs: 0, endMs: 1500, words: [
+                { text: 'hi', startMs: 0, endMs: 750 }, { text: 'there', startMs: 750, endMs: 1500 },
+              ] }],
+            },
+            at: 0,
+            duration: 1.5,
+            transform: { frame: { x: 0.05, y: 0.8, w: 0.9, h: 0.15 } },
           }],
         },
       ],
@@ -169,8 +182,8 @@ describe('compose (real render)', () => {
       version: 1,
       output: { width: 854, height: 480, fps: 24 },
       tracks: [
-        { type: 'video', clips: [{ source: A, duration: 3 }] },
-        { type: 'overlay', items: [{ kind: 'image', source: logo, at: 0, duration: 3, position: 'top-right', width: 0.25 }] },
+        { type: 'visual', sequential: true, clips: [{ media: { kind: 'video', source: A }, at: 0, duration: 3 }] },
+        { type: 'visual', clips: [{ media: { kind: 'image', source: logo }, at: 0, duration: 3, transform: { frame: { x: 0.73, y: 0.02, w: 0.25, h: 0.15 } } }] },
       ],
     };
     const res = await compose(spec, out, { preset: 'ultrafast', crf: 30 });
