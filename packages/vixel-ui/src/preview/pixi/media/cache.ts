@@ -51,6 +51,24 @@ export function sourceUrl(source: unknown): string | null {
 
 const isVideoUrl = (url: string) => /\.(mp4|webm|mov|m4v|ogv)(\?|#|$)/i.test(url);
 
+/**
+ * Load an `<img>` robustly via `onload`/`onerror` — NOT the stricter `img.decode()`,
+ * which REJECTS on some valid sources (notably `data:image/svg+xml` URIs), where the
+ * caller's catch then cached it as `failed` and the clip rendered null. The WebGL
+ * texture upload still happens on the next Pixi render, so dropping `decode()` only
+ * loses an early pre-decode, not correctness. `crossOrigin` is set for remote URLs
+ * (taint-free WebGL upload) but skipped for `data:`/blob URIs that don't need it.
+ */
+function loadImageEl(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    if (!url.startsWith('data:') && !url.startsWith('blob:')) img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`image load failed: ${url}`));
+    img.src = url;
+  });
+}
+
 /** The media URL a clip references (image/video clips only), or null. */
 function clipUrl(clip: VisualClip): string | null {
   const m = clip.media;
@@ -147,21 +165,12 @@ export async function preloadAssets(PIXI: Pixi, spec: VixelSpec, cache: MediaCac
             const textures = anim.frames.map((bmp) => PIXI.Texture.from(bmp));
             cache.set(cacheKey, { kind: 'gif', textures, frameEndsMs: anim.frameEndsMs, totalMs: anim.totalMs, width: anim.width, height: anim.height });
           } else {
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            img.src = url;
-            await img.decode();
-            cache.set(cacheKey, { kind: 'image', texture: PIXI.Texture.from(img) });
+            cache.set(cacheKey, { kind: 'image', texture: PIXI.Texture.from(await loadImageEl(url)) });
           }
         } else {
           // Load via an <img> (not Assets.load) so extension-less URLs work and
           // we control CORS for WebGL upload.
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.src = url;
-          await img.decode();
-          const texture = PIXI.Texture.from(img);
-          cache.set(cacheKey, { kind: 'image', texture });
+          cache.set(cacheKey, { kind: 'image', texture: PIXI.Texture.from(await loadImageEl(url)) });
         }
       } catch {
         cache.set(cacheKey, { kind: 'failed' });
