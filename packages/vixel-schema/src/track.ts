@@ -12,6 +12,8 @@ import type { AudioItem } from './audio.js';
 
 export interface AudioTrack {
   type: 'audio';
+  /** Stable lane id (minted by `normalizeSpec` via `mintIds`). */
+  id?: string;
   items: AudioItem[];
 }
 

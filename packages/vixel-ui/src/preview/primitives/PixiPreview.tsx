@@ -17,8 +17,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentProps } from 'react';
 import type * as PIXINS from 'pixi.js';
+import { registerSpecPacks } from '@classytic/vixel-schema';
 import { useEditorState, useEditorActions } from '../../editor/controller/hooks/useEditorStore.js';
-import { preloadAssets, renderScene, collectMediaKeys, collectFontFaces, loadFonts, loadLuts, loadShaders, clearElementLayouts, createApp, destroyApp, disposeMediaCache, evictUnused, type MediaCache } from '../pixi/index.js';
+import { preloadAssets, renderScene, collectMediaKeys, collectFontFaces, loadFonts, loadLuts, loadShaders, loadEffectTextures, collectEffectTextureUrls, clearElementLayouts, createApp, destroyApp, disposeMediaCache, evictUnused, type MediaCache } from '../pixi/index.js';
 
 type Pixi = typeof import('pixi.js');
 
@@ -61,7 +62,14 @@ export function PixiPreview({ antialias = true, className, style, ...props }: Pi
   // leave this unchanged, so the preload effect below won't re-run on every
   // slider tick (it used to key on the whole `spec`, firing an async preload +
   // an extra render per tick — the main cause of the slider feeling laggy).
-  const assetKey = useMemo(() => collectMediaKeys(spec).join('\n'), [spec]);
+  // SELF-CONTAINED packs: register a spec's inline `packs` (custom shaders/transitions
+  // a project carries) BEFORE the keys/preloads below — they call getEffect, which must
+  // see the pack. Runs in render order (above assetKey); registerPack is idempotent.
+  useMemo(() => { registerSpecPacks(spec); return (spec.packs ?? []).map((p) => p.id).join(','); }, [spec]);
+
+  // Media source keys + BYO shader texture-input URLs — so applying/swapping a
+  // `texture`-param effect re-triggers the preload (loadEffectTextures) + rebind.
+  const assetKey = useMemo(() => [...collectMediaKeys(spec), ...collectEffectTextureUrls(spec)].join('\n'), [spec]);
 
   // The set of custom (family, file) fonts — keyed so we only (re)load fonts when
   // a new face appears, not on every transform edit.
@@ -147,7 +155,7 @@ export function PixiPreview({ antialias = true, className, style, ...props }: Pi
     let cancelled = false;
     // Fonts + pack-effect resources (LUT `.cube`s, URL-sourced shaders) — once any
     // arrive, bump the asset version so the affected elements re-render.
-    void Promise.all([loadFonts(specRef.current), loadLuts(PIXI, specRef.current), loadShaders(specRef.current)]).then(() => {
+    void Promise.all([loadFonts(specRef.current), loadLuts(PIXI, specRef.current), loadShaders(specRef.current), loadEffectTextures(PIXI, specRef.current)]).then(() => {
       if (!cancelled) setAssetVersion((v) => v + 1);
     });
     return () => {

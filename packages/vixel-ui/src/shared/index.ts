@@ -35,6 +35,11 @@ export {
 
 export type { ClipLayout } from './utils/spec.js';
 
+// The headless edit core: typed, id-addressed commands over the pure `with*()`
+// reducers. React-free — importable by a Node agent / server edit pipeline.
+export { applyCommand, commandLabel } from './utils/commands.js';
+export type { EditorCommand, EditorCommandType } from './utils/commands.js';
+
 export { cn } from './utils/cn.js';
 export type { ClassValue } from './utils/cn.js';
 

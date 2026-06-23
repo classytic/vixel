@@ -58,10 +58,7 @@ export function TimelineClip({
   // (select/delete/move) — one source of truth, with screen-reader announcements.
   const a = useTimelineItemActions({ kind: item.selectionKind, trackIndex: item.trackIndex, itemIndex: item.index });
   const selected = useEditorState(
-    (s) =>
-      s.selection?.kind === item.selectionKind &&
-      s.selection.trackIndex === item.trackIndex &&
-      s.selection.itemIndex === item.index,
+    (s) => !!item.id && s.selection?.kind === item.selectionKind && s.selection.id === item.id,
   );
 
   const showTrim = trimHandles && item.selectionKind !== 'audio';

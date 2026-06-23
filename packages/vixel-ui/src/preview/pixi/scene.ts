@@ -41,7 +41,7 @@ export { getElementLayouts, subscribeElementLayouts, clearElementLayouts } from 
 export { sourceUrl, collectSourceUrls, mediaCacheKey, collectMediaKeys, preloadAssets, awaitVideoSeeks, disposeMediaCache, evictUnused, collectOverlayUrls, overlayTextureFromCache } from './media/cache.js';
 export { collectFontFaces, loadFonts } from './media/fonts.js';
 export { loadLuts } from './filters/lut.js';
-export { loadShaders, trackAnimatedFilter } from './filters/shader.js';
+export { loadShaders, loadEffectTextures, collectEffectTextureUrls, trackAnimatedFilter } from './filters/shader.js';
 export { PIXI_EFFECT_IDS, registerPixiEffect } from './filters/registry.js';
 
 // ── Retained scene: reuse display objects across frames ──────────────────────

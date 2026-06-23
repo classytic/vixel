@@ -50,6 +50,7 @@ export function useTimelineTracks(): TrackView[] {
         const displaySec = next ? Math.max(0.05, next.startSec - l.startSec) : l.durationSec;
         return {
           selectionKind: 'clip',
+          id: l.clip.id,
           trackIndex,
           index: l.index,
           mediaKind: l.clip.media.kind,
@@ -67,6 +68,7 @@ export function useTimelineTracks(): TrackView[] {
         const durationSec = it.out != null ? Math.max(0, it.out - (it.in ?? 0)) : 0;
         return {
           selectionKind: 'audio',
+          id: it.id,
           trackIndex,
           index,
           startSec,

@@ -24,6 +24,7 @@ import type { TransitionRef } from '@classytic/vixel-schema';
 import { useTimelineGeometry } from '../controller/hooks/useTimeline.js';
 import { useEditorState, useEditorActions } from '../../editor/controller/hooks/useEditorStore.js';
 import { isVisualTrack, laneSeams, MIN_TRANSITION_DURATION } from '../../shared/utils/spec.js';
+import { resolveSeam } from '../../shared/utils/selection.js';
 import type { TrackView } from '../types.js';
 
 /** Smallest visible width (px) for a seam, so an empty/very-short one stays grabbable. */
@@ -141,9 +142,10 @@ function Seam({
 }) {
   const { secToPx, pxToSec } = useTimelineGeometry();
   const actions = useEditorActions();
-  const selected = useEditorState(
-    (s) => s.selectedSeam?.trackIndex === trackIndex && s.selectedSeam.gap === seam.gap,
-  );
+  const selected = useEditorState((s) => {
+    const r = resolveSeam(s.spec, s.selectedSeam);
+    return r?.trackIndex === trackIndex && r.gap === seam.gap;
+  });
   const drag = useRef<{ startX: number; startDur: number; edge: 'start' | 'end'; moved: boolean } | null>(null);
   const dragging = useRef(false);
   // A transient render trigger for the drag flag — kept out of the store (it's

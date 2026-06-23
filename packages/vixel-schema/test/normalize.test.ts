@@ -61,7 +61,42 @@ describe('normalizeSpec — place → frame', () => {
       ],
     };
     const once = normalizeSpec(spec);
-    expect(once.tracks[1]).toEqual(spec.tracks[1]); // audio untouched
+    const audio = once.tracks[1]!;
+    expect(audio.type).toBe('audio');
+    if (audio.type === 'audio') {
+      // Content preserved (place/preset resolution doesn't touch audio); only a
+      // stable id is minted on the track + item.
+      expect(audio.items[0]).toMatchObject({ source: 'a.mp3', at: 0, in: 0, out: 2 });
+      expect(audio.items[0]!.id).toBeTruthy();
+    }
     expect(normalizeSpec(once)).toEqual(once); // idempotent
+  });
+
+  it('resolves transition `between` index shorthand to stable clip ids, drops stale pairs', () => {
+    const spec: VixelSpec = {
+      version: 1,
+      output: out,
+      tracks: [
+        {
+          type: 'visual',
+          sequential: true,
+          clips: [
+            { media: { kind: 'video', source: 'a.mp4' }, at: 0, duration: 2 },
+            { media: { kind: 'video', source: 'b.mp4' }, at: 2, duration: 2 },
+          ],
+          transitions: [
+            { between: [0, 1], transition: { id: 'fade', duration: 0.5 } }, // valid → id pair
+            { between: [0, 2], transition: { id: 'fade', duration: 0.5 } }, // non-adjacent → dropped
+          ],
+        },
+      ],
+    };
+    const tr = normalizeSpec(spec).tracks[0]!;
+    if (tr.type !== 'visual') throw new Error('expected visual');
+    expect(tr.transitions).toHaveLength(1);
+    const [a, b] = tr.transitions![0]!.between;
+    expect(a).toBe(tr.clips[0]!.id);
+    expect(b).toBe(tr.clips[1]!.id);
+    expect(typeof a).toBe('string');
   });
 });

@@ -25,9 +25,10 @@
 'use client';
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import type { VisualTransform, MediaKind } from '@classytic/vixel-schema';
+import type { VisualTransform, MediaKind, VisualClip } from '@classytic/vixel-schema';
 import { useEditorState, useEditorActions } from '../../editor/controller/hooks/useEditorStore.js';
 import { layoutLane, isVisualTrack } from '../../shared/utils/spec.js';
+import { resolveSelection } from '../../shared/utils/selection.js';
 import { useTransformDrag, type TransformMode } from '../../shared/transform/useTransformDrag.js';
 import { getElementLayouts, subscribeElementLayouts, type ElementLayout } from '../pixi/index.js';
 
@@ -161,13 +162,18 @@ export function TransformOverlay({ className, recomputeKey }: TransformOverlayPr
     return l ? { frame: { x: l.x, y: l.y, w: l.w, h: l.h }, rotation: l.rotation } : boxOf(r, W, H);
   };
 
-  const track = selection && selection.kind === 'clip' ? spec.tracks[selection.trackIndex] : undefined;
-  const clip = track && isVisualTrack(track) ? track.clips[selection!.itemIndex] : null;
+  // The stored selection is id-keyed; resolve it to a live position + item once.
+  const resolvedSel = selection?.kind === 'clip' ? resolveSelection(spec, selection) : null;
+  const clip = resolvedSel && isVisualTrack(resolvedSel.track) ? (resolvedSel.item as VisualClip) : null;
   const rec = clip as unknown as ClipRec | null;
   const kind = rec?.media?.kind;
   const isText = kind === 'text';
+  // A LINE shape is drawn as the frame's DIAGONAL, so only its two diagonal corners
+  // (nw + se) are real endpoints — the other 6 box handles are meaningless. Show just
+  // those two + rotate, so a line reads/edits as a line, not a rectangle.
+  const isLine = kind === 'shape' && (rec?.media as { shape?: string } | undefined)?.shape === 'line';
   // Effect adjustment layers have no spatial box — no transform gizmo for them.
-  const sel = rec && kind !== 'effect' && selection ? resolveBox(rec, keyFor(selection)) : null;
+  const sel = rec && kind !== 'effect' && resolvedSel ? resolveBox(rec, keyFor(resolvedSel)) : null;
   const frame = sel?.frame ?? null;
   const rotation = sel?.rotation ?? 0;
 
@@ -181,7 +187,7 @@ export function TransformOverlay({ className, recomputeKey }: TransformOverlayPr
     rotation,
     rect: cr ? { left: cr.left, top: cr.top, width: cr.width, height: cr.height } : { left: 0, top: 0, width: 1, height: 1 },
     onChange: (patch) => {
-      if (!selection || !rec || selection.kind !== 'clip') return;
+      if (!resolvedSel || !rec || selection?.kind !== 'clip') return;
       const next: VisualTransform = { ...(rec.transform ?? {}) };
       if (patch.frame) next.frame = patch.frame;
       if (patch.rotation !== undefined) next.rotation = Math.round(patch.rotation);
@@ -195,7 +201,7 @@ export function TransformOverlay({ className, recomputeKey }: TransformOverlayPr
           clipPatch.media = { ...clip.media, style: { ...(clip.media.style ?? {}), fontSize } };
         }
       }
-      actions.updateClip(selection.trackIndex, selection.itemIndex, clipPatch);
+      actions.updateClip(resolvedSel.trackIndex, resolvedSel.itemIndex, clipPatch);
     },
   });
 
@@ -220,7 +226,7 @@ export function TransformOverlay({ className, recomputeKey }: TransformOverlayPr
       const r = t.clips[itemIndex] as unknown as ClipRec;
       if (r.hidden || r.media?.kind === 'effect') continue; // effects aren't spatially selectable
       if (!(playheadSec >= l.startSec && playheadSec < l.endSec)) continue;
-      if (selection?.kind === 'clip' && selection.trackIndex === trackIndex && selection.itemIndex === itemIndex) {
+      if (resolvedSel && resolvedSel.trackIndex === trackIndex && resolvedSel.itemIndex === itemIndex) {
         selOrder = z; // capture, but don't add a hit region for the selected element
         continue;
       }
@@ -275,8 +281,10 @@ export function TransformOverlay({ className, recomputeKey }: TransformOverlayPr
               <div className="absolute" style={{ ...boxStyle, zIndex: 10 }}>
                 <div
                   onPointerDown={startDrag('move')}
-                  className="pointer-events-auto absolute inset-0 cursor-move shadow-[0_0_0_1px_rgba(0,0,0,0.45)]"
-                  style={{ touchAction: 'none', border: `2px ${isText ? 'dashed' : 'solid'} var(--color-primary, #6366f1)` }}
+                  className={`pointer-events-auto absolute inset-0 cursor-move ${isLine ? '' : 'shadow-[0_0_0_1px_rgba(0,0,0,0.45)]'}`}
+                  // A LINE shows no rectangular border (it isn't a box) — just its two
+                  // endpoint handles + rotate; the surface stays draggable to move it.
+                  style={{ touchAction: 'none', border: isLine ? '2px solid transparent' : `2px ${isText ? 'dashed' : 'solid'} var(--color-primary, #6366f1)` }}
                 />
               </div>
               {/* Handles + rotate — z-30, always interactive (above any hit region). */}
@@ -294,7 +302,7 @@ export function TransformOverlay({ className, recomputeKey }: TransformOverlayPr
                     <path d="M21 3v6h-6" />
                   </svg>
                 </button>
-                {HANDLES.map((h) => {
+                {(isLine ? HANDLES.filter((h) => h.mode === 'nw' || h.mode === 'se') : HANDLES).map((h) => {
                   const isCorner = h.mode.length === 2;
                   const isVert = h.mode === 'e' || h.mode === 'w';
                   const shape = isCorner ? 'size-3.5 rounded-[4px]' : isVert ? 'h-6 w-1.5 rounded-full' : 'h-1.5 w-6 rounded-full';

@@ -8,6 +8,7 @@
 
 import { use, useCallback, useRef, useSyncExternalStore } from 'react';
 import { EditorStoreContext, EditorActionsContext } from '../context/EditorContext.js';
+import { resolveSelection } from '../../../shared/utils/selection.js';
 import type { EditorState, EditorActions } from '../../../types.js';
 
 /** Select a slice of editor state (re-renders on `Object.is` change). */
@@ -75,14 +76,7 @@ export function useEditorSpec() {
  */
 export function useSelectedItem() {
   return useShallowEditorState((s) => {
-    const sel = s.selection;
-    const track = sel ? s.spec.tracks[sel.trackIndex] : undefined;
-    const item =
-      sel && track
-        ? track.type === 'visual'
-          ? track.clips[sel.itemIndex]
-          : track.items[sel.itemIndex]
-        : undefined;
-    return { selection: sel, item: item ?? null };
+    const resolved = resolveSelection(s.spec, s.selection);
+    return { selection: s.selection, item: resolved?.item ?? null };
   });
 }

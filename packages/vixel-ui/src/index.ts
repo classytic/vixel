@@ -34,7 +34,9 @@ export { ALL_FEATURES } from './types.js';
 export type {
   FeatureConfig,
   SelectionKind,
+  SelectionTarget,
   SelectionRef,
+  SeamTarget,
   SeamRef,
   EditorState,
   EditorActions,
@@ -43,3 +45,14 @@ export type {
   Track,
   VixelSpec,
 } from './types.js';
+
+// Selection resolution (position ⇄ stable id) — for hosts/agents driving selection.
+export {
+  resolveSelection,
+  resolveSeam,
+  selectionRefAt,
+  seamRefAt,
+  pruneSelection,
+  pruneSeam,
+} from './shared/utils/selection.js';
+export type { ResolvedSelection, ResolvedSeam } from './shared/utils/selection.js';

@@ -15,6 +15,9 @@
  */
 import { BUILTIN_EFFECTS, type EffectDescriptor } from './effects/index.js';
 import { BUILTIN_TRANSITIONS, type TransitionDescriptor } from './transitions.js';
+import type { TransitionRef } from './transitions.js';
+import { validateShaderDescriptor } from './shader-wrap.js';
+import { transitionGap } from './visual.js';
 import type { VixelSpec } from './spec.js';
 
 /** A registrable bundle of effects + transitions. `baseUrl` is the pack's CDN root. */
@@ -50,7 +53,11 @@ export function registerPack(pack: EffectPack): void {
   PACKS.set(pack.id, pack);
   for (const e of pack.effects ?? []) {
     const source = resolveSource(pack.baseUrl, e.source ?? e.asset);
-    EFFECTS.set(e.id, { ...EFFECTS.get(e.id), ...e, ...(source ? { source } : {}) });
+    const merged = { ...EFFECTS.get(e.id), ...e, ...(source ? { source } : {}) };
+    // BYO shaders: surface authoring mistakes loudly (non-fatal) so a bad pack entry
+    // doesn't just silently fail to render later.
+    for (const err of validateShaderDescriptor(merged)) console.warn(`[vixel pack:${pack.id}] ${err}`);
+    EFFECTS.set(e.id, merged);
   }
   for (const t of pack.transitions ?? []) {
     const overlay = t.overlay ? { ...t.overlay, source: resolveSource(pack.baseUrl, t.overlay.source) ?? t.overlay.source } : undefined;
@@ -99,7 +106,12 @@ export function collectTransitionSounds(spec: VixelSpec): TransitionSoundCue[] {
   for (const track of spec.tracks ?? []) {
     if (track.type !== 'visual') continue;
     const clips = track.clips ?? [];
-    const ov = new Map((track.transitions ?? []).map((t) => [t.between[0], t.transition]));
+    // Key transitions by their resolved GAP index (handles id- or index-based `between`).
+    const ov = new Map<number, TransitionRef>();
+    for (const t of track.transitions ?? []) {
+      const gap = transitionGap(track, t);
+      if (gap !== undefined) ov.set(gap, t.transition);
+    }
     let start = 0;
     for (let i = 0; i < clips.length; i++) {
       if (i > 0) start += (clips[i - 1].duration ?? 0) - (ov.get(i - 1)?.duration ?? 0);
@@ -112,6 +124,15 @@ export function collectTransitionSounds(spec: VixelSpec): TransitionSoundCue[] {
     }
   }
   return out;
+}
+
+/**
+ * Register a spec's SELF-CONTAINED packs ({@link VixelSpec.packs}) — call on load,
+ * before rendering, so inline custom shaders/transitions a project (or an agent)
+ * carries resolve like any registered pack. Idempotent per pack id.
+ */
+export function registerSpecPacks(spec: VixelSpec): void {
+  for (const pack of spec.packs ?? []) registerPack(pack);
 }
 
 /** Look up an effect descriptor (built-in or pack) by id. */

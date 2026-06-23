@@ -6,7 +6,7 @@
  * updates (playhead, zoom) re-render only the primitives that select them. Every
  * spec mutation is immutable and notifies through `onChange`.
  */
-import type { VixelSpec } from '@classytic/vixel-schema';
+import { mintIds, type VixelSpec } from '@classytic/vixel-schema';
 import type {
   EditorState,
   EditorActions,
@@ -15,6 +15,12 @@ import type {
   ClipPatch,
 } from '../../../types.js';
 import { ALL_FEATURES } from '../../../types.js';
+import {
+  selectionRefAt,
+  seamRefAt,
+  pruneSelection,
+  pruneSeam,
+} from '../../../shared/utils/selection.js';
 import {
   totalDurationSec,
   withClipPatch,
@@ -25,6 +31,8 @@ import {
   withClipInNewLane,
   withClipAutoPlaced,
   withTrackMoved,
+  withTrackHidden,
+  withTrackMuted,
   withAudioPatch,
   withAudioRemoved,
   withClipAppended,
@@ -32,6 +40,7 @@ import {
   withOutputPatch,
   withTransition,
 } from '../../../shared/utils/spec.js';
+import { applyCommand, commandLabel } from '../../../shared/utils/commands.js';
 
 export interface EditorStore {
   getState: () => EditorState;
@@ -47,12 +56,14 @@ export interface CreateEditorStoreOptions {
 
 /** Create the external editor store seeded from a spec. */
 export function createEditorStore(opts: CreateEditorStoreOptions): EditorStore {
+  // Mint stable ids up front so selection/seam are identity-addressable from frame 0.
+  const initialSpec = mintIds(opts.spec);
   let state: EditorState = {
-    spec: opts.spec,
+    spec: initialSpec,
     selection: null,
     selectedSeam: null,
     playheadSec: 0,
-    durationSec: totalDurationSec(opts.spec),
+    durationSec: totalDurationSec(initialSpec),
     pxPerSec: opts.pxPerSec ?? 100,
     isPlaying: false,
     canUndo: false,
@@ -90,46 +101,58 @@ const MAX_HISTORY = 100;
 const COALESCE_MS = 600;
 const nowMs = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
-/** Selection can dangle after a structural undo/redo (a referenced clip vanished). */
-function validSelection(spec: VixelSpec, sel: SelectionRef | null): SelectionRef | null {
-  if (!sel) return null;
-  const track = spec.tracks[sel.trackIndex];
-  if (!track) return null;
-  const len = track.type === 'visual' ? track.clips.length : track.items.length;
-  return sel.itemIndex >= 0 && sel.itemIndex < len ? sel : null;
-}
-
 /** Bind imperative {@link EditorActions} to a store + host callbacks. */
 export function createEditorActions(
   store: EditorStore,
   options: CreateEditorActionsOptions = {},
 ): EditorActions {
-  // Undo/redo history of FULL specs (edits are immutable + structurally shared, so a
-  // snapshot is cheap). `past` = states to undo into, `future` = redo targets.
-  let past: VixelSpec[] = [];
-  let future: VixelSpec[] = [];
+  // Undo/redo history of FULL specs + the edit's LABEL (snapshots are cheap thanks
+  // to structural sharing). `past` = states to undo into, `future` = redo targets.
+  interface HistoryEntry {
+    spec: VixelSpec;
+    /** Label of the edit that moved off this snapshot (what undo/redo reverts). */
+    label: string;
+  }
+  let past: HistoryEntry[] = [];
+  let future: HistoryEntry[] = [];
   // Timestamp of the last commit (for burst coalescing). −Infinity ⇒ the next edit
   // ALWAYS starts a fresh undo step (the first edit, and the first after undo/redo).
   let lastTouch = -Infinity;
 
-  /** Push `spec` to the store + derived state, revalidate selection, fire onChange. */
+  /** Push `spec` to the store + derived state, prune a now-deleted selection/seam
+   *  (id-keyed refs need no positional re-resolution — they can't drift), expose the
+   *  undo/redo labels, fire onChange. */
   const applySpec = (spec: VixelSpec) => {
     const durationSec = totalDurationSec(spec);
     const playheadSec = Math.min(store.getState().playheadSec, durationSec);
-    const selection = validSelection(spec, store.getState().selection);
-    store.setState({ spec, durationSec, playheadSec, selection, canUndo: past.length > 0, canRedo: future.length > 0 });
+    const selection = pruneSelection(spec, store.getState().selection);
+    const selectedSeam = pruneSeam(spec, store.getState().selectedSeam);
+    store.setState({
+      spec,
+      durationSec,
+      playheadSec,
+      selection,
+      selectedSeam,
+      canUndo: past.length > 0,
+      canRedo: future.length > 0,
+      undoLabel: past.at(-1)?.label,
+      redoLabel: future.at(-1)?.label,
+    });
     options.onChange?.(spec);
   };
 
-  /** Commit a new spec: snapshot the previous one for undo (coalescing bursts). */
-  const commit = (spec: VixelSpec) => {
+  /** Commit a new spec under an undo `label`: snapshot the previous one (coalescing
+   *  bursts), mint ids so new clips are identity-stable, then apply. */
+  const commit = (raw: VixelSpec, label = 'Edit') => {
     const prev = store.getState().spec;
-    if (spec === prev) return;
+    if (raw === prev) return;
+    const spec = mintIds(raw);
     const t = nowMs();
     // A "fresh" gesture (a gap since the last edit) starts a new undo step; rapid
-    // ticks within the window slide the timestamp without adding a step.
+    // ticks within the window slide the timestamp without adding a step — so the
+    // step keeps the FIRST edit's label (one "Trim clip" for a whole drag).
     if (t - lastTouch >= COALESCE_MS) {
-      past.push(prev);
+      past.push({ spec: prev, label });
       if (past.length > MAX_HISTORY) past.shift();
     }
     future = [];
@@ -138,36 +161,48 @@ export function createEditorActions(
   };
 
   return {
-    setSpec: (spec) => commit(spec),
+    setSpec: (spec) => commit(spec, 'Replace composition'),
     getSpec: () => store.getState().spec,
     requestExport: () => options.onExport?.(store.getState().spec),
 
+    // The STANDARD edit path — typed, id-addressed, labeled (UI + agents + telemetry).
+    dispatch: (command) =>
+      commit(applyCommand(store.getState().spec, command), command.label ?? commandLabel(command)),
+
     undo: () => {
       if (!past.length) return;
-      future.push(store.getState().spec);
-      const prev = past.pop()!;
+      const entry = past.pop()!;
+      future.push({ spec: store.getState().spec, label: entry.label });
       lastTouch = -Infinity; // the next edit starts a fresh step
-      applySpec(prev);
+      applySpec(entry.spec);
     },
     redo: () => {
       if (!future.length) return;
-      past.push(store.getState().spec);
-      const next = future.pop()!;
+      const entry = future.pop()!;
+      past.push({ spec: store.getState().spec, label: entry.label });
       lastTouch = -Infinity;
-      applySpec(next);
+      applySpec(entry.spec);
     },
     clearHistory: () => {
       past = [];
       future = [];
       lastTouch = -Infinity;
-      store.setState({ canUndo: false, canRedo: false });
+      store.setState({ canUndo: false, canRedo: false, undoLabel: undefined, redoLabel: undefined });
     },
 
-    select: (ref) => {
-      store.setState({ selection: ref, selectedSeam: null });
-      options.onSelect?.(ref);
+    select: (target) => {
+      // Position → stable id at issue time; the stored ref then survives any edit.
+      const sel: SelectionRef | null = target
+        ? selectionRefAt(store.getState().spec, target.kind, target.trackIndex, target.itemIndex)
+        : null;
+      store.setState({ selection: sel, selectedSeam: null });
+      options.onSelect?.(sel);
     },
-    selectSeam: (seam) => store.setState({ selectedSeam: seam, selection: null }),
+    selectSeam: (target) =>
+      store.setState({
+        selectedSeam: target ? seamRefAt(store.getState().spec, target.trackIndex, target.gap) : null,
+        selection: null,
+      }),
     setTransition: (trackIndex, gap, ref) =>
       commit(withTransition(store.getState().spec, trackIndex, gap, ref)),
     setPlayhead: (sec) =>
@@ -192,6 +227,8 @@ export function createEditorActions(
     addClipAuto: (clip) =>
       commit(withClipAutoPlaced(store.getState().spec, clip, clip.at ?? 0)),
     moveLane: (fromIndex, toIndex) => commit(withTrackMoved(store.getState().spec, fromIndex, toIndex)),
+    setTrackHidden: (trackIndex, hidden) => commit(withTrackHidden(store.getState().spec, trackIndex, hidden)),
+    setTrackMuted: (trackIndex, muted) => commit(withTrackMuted(store.getState().spec, trackIndex, muted)),
 
     updateAudioItem: (trackIndex, itemIndex, patch) =>
       commit(withAudioPatch(store.getState().spec, trackIndex, itemIndex, patch)),

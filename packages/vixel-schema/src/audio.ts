@@ -16,6 +16,12 @@ export interface DuckSpec {
 }
 
 export interface AudioItem {
+  /** Stable item id (minted by `normalizeSpec` via `mintIds`) — referenced by
+   *  identity (selection/edit/link), not array position. */
+  id?: string;
+  /** Link-group id — couples this item to its partner video/audio so edits carry the
+   *  whole group in sync (detached source audio, dual-system sound). See `./link`. */
+  linkId?: string;
   source: SourceRef;
   at?: number;
   in?: number;

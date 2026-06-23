@@ -81,8 +81,11 @@ const zClip = z
   })
   .loose();
 
+// `between` references the adjacent clip pair as ids (canonical) OR indices
+// (authoring shorthand); `normalizeSpec` resolves indices → ids.
+const zSeamRef = z.union([z.string().min(1), z.number().int().nonnegative()]);
 const zSequenceTransition = z.object({
-  between: z.tuple([z.number().int().nonnegative(), z.number().int().nonnegative()]),
+  between: z.tuple([zSeamRef, zSeamRef]),
   transition: zTransitionRef,
 });
 

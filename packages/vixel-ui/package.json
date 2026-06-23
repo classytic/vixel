@@ -1,6 +1,6 @@
 {
   "name": "@classytic/vixel-ui",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Headless, configurable React editor primitives for vixel. A timeline UI over the VixelSpec contract Ã¢â‚¬â€ agent-emittable, human-editable, render via @classytic/vixel.",
   "type": "module",
   "main": "./dist/index.js",

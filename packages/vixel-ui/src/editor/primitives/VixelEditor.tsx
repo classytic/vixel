@@ -22,20 +22,11 @@ import {
   type EditorStore,
 } from '../controller/store/createEditorStore.js';
 import { totalDurationSec } from '../../shared/utils/spec.js';
+import { pruneSelection, pruneSeam } from '../../shared/utils/selection.js';
 import { TimelineDndProvider } from '../../timeline/controller/DndContext.js';
 import { LiveRegionProvider } from '../../a11y/live-region.js';
 import { ALL_FEATURES } from '../../types.js';
 import type { EditorActions, VixelEditorProps, VixelSpec, SelectionRef } from '../../types.js';
-
-/** Is a selection ref still in-bounds for this spec? (Index-based selection can
- *  dangle after an external spec replacement or a destructive edit.) */
-function selectionValid(spec: VixelSpec, sel: SelectionRef | null): boolean {
-  if (!sel) return true;
-  const track = spec.tracks[sel.trackIndex];
-  if (!track) return false;
-  const len = track.type === 'visual' ? track.clips.length : track.items.length;
-  return sel.itemIndex >= 0 && sel.itemIndex < len;
-}
 
 export function VixelEditor({
   spec,
@@ -83,8 +74,14 @@ export function VixelEditor({
     lastSpecRef.current = spec;
     if (spec === store.getState().spec) return; // echo of an internal commit — no-op
     const cur = store.getState();
-    const selection = selectionValid(spec, cur.selection) ? cur.selection : null;
-    store.setState({ spec, durationSec: totalDurationSec(spec), selection, selectedSeam: null });
+    // Id-keyed selection/seam survive a replacement verbatim if their element is
+    // still present (e.g. an agent edited around it); only drop them if it's gone.
+    store.setState({
+      spec,
+      durationSec: totalDurationSec(spec),
+      selection: pruneSelection(spec, cur.selection),
+      selectedSeam: pruneSeam(spec, cur.selectedSeam),
+    });
     actions.clearHistory(); // a genuine external replacement starts a fresh undo history
   }, [spec, store, actions]);
 

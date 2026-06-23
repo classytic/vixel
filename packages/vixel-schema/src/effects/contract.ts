@@ -39,7 +39,15 @@ export type EffectKind = 'filter' | 'lut' | 'overlay' | 'shader' | 'body';
  */
 export type EffectRenderer = 'ffmpeg' | 'pixi';
 
-export type EffectParamType = 'number' | 'color' | 'boolean' | 'enum';
+/**
+ * A param's value type — drives the editor control AND how a `shader` effect binds it:
+ *  - `number`/`color`/`boolean` → a live uniform (or baked literal); see {@link EffectParam.bind}.
+ *  - `enum` → always a baked literal (selects a code path).
+ *  - `texture` → a BYO sampler INPUT: the value is an image URL bound as `uniform sampler2D <name>`
+ *    (displacement maps, gradient maps, custom LUTs-as-image, secondary footage). The author
+ *    samples it directly, e.g. `texture(<name>, uv)`.
+ */
+export type EffectParamType = 'number' | 'color' | 'boolean' | 'enum' | 'texture';
 
 /** A typed, introspectable parameter — drives auto-generated editor UI (effects + transitions). */
 export interface EffectParam {
@@ -53,6 +61,15 @@ export interface EffectParam {
   /** Allowed values for `enum` params. */
   options?: string[];
   unit?: string;
+  /**
+   * How a `shader`-kind effect's `{{name}}` token reaches the GLSL — its BINDING:
+   *  - `uniform` (default for number/color/boolean) — a live typed uniform, so the
+   *    editor updates it WITHOUT recompiling the program (smooth slider drags).
+   *  - `literal`  — baked as a GLSL constant. Required when the value must be a
+   *    compile-time constant (array sizes, `const`, loop bounds). `enum` is ALWAYS
+   *    literal (it selects a code path, not a value). Export bakes everything either way.
+   */
+  bind?: 'uniform' | 'literal';
 }
 
 /**
@@ -78,6 +95,12 @@ export interface EffectDescriptor {
    * registered via a pack. `filter` kinds have no source. Never bundled.
    */
   source?: string;
+  /**
+   * MULTI-PASS `shader` effect — an ordered list of {@link ShaderPass}es ping-ponged
+   * through render targets (bloom/blur/glow). Takes precedence over single `source`
+   * when present. Pixi-only today (declare `unsupported: ['ffmpeg']`).
+   */
+  passes?: ShaderPass[];
   /** @deprecated alias of {@link source} for `overlay`/`body` assets. */
   asset?: string;
   blend?: 'normal' | 'screen' | 'multiply' | 'overlay' | 'soft-light' | 'add';
@@ -112,6 +135,18 @@ export interface EffectDescriptor {
    * editor draws over the sample (vignette / warm / cool / grain).
    */
   preview?: { css?: string; overlay?: 'vignette' | 'warm' | 'cool' | 'grain' };
+}
+
+/**
+ * One pass of a MULTI-PASS `shader` effect. Passes ping-pong through render targets:
+ * each reads the PREVIOUS pass's output via `vixelSample(uv)` (pass 0 = the clip
+ * input) and the ORIGINAL clip via `vixelOriginal(uv)` (for composite passes — bloom
+ * = threshold → blur → blur → combine-with-original). Same `{{param}}` / `uTime` /
+ * `texture`-input contract as a single-pass source.
+ */
+export interface ShaderPass {
+  /** This pass's `vec4 vixelEffect(vec2 uv)` GLSL (inline). */
+  source: string;
 }
 
 /** What a spec (and an agent) emits: a reference to an effect by id + param values. */

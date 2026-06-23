@@ -22,6 +22,10 @@ export type {
 export { useTimelineGeometry, useTimelineTracks } from './controller/hooks/useTimeline.js';
 export { useTimelineItemActions } from './controller/hooks/useTimelineItemActions.js';
 export type { TimelineItemActions, ItemActionTarget } from './controller/hooks/useTimelineItemActions.js';
+export { useTimelineTrackActions } from './controller/hooks/useTimelineTrackActions.js';
+export type { TimelineTrackActions } from './controller/hooks/useTimelineTrackActions.js';
+export { useCaptionStyleActions } from './controller/hooks/useCaptionStyleActions.js';
+export type { CaptionStyleActions } from './controller/hooks/useCaptionStyleActions.js';
 export { useClipDrag } from './controller/hooks/useClipDrag.js';
 export type { UseClipDrag, ClipDragHandle } from './controller/hooks/useClipDrag.js';
 export { TimelineDndProvider, useTimelineDnd, useTimelineDrag } from './controller/DndContext.js';

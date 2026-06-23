@@ -22,6 +22,7 @@ import type {
   AudioItem,
   TransitionRef,
 } from '@classytic/vixel-schema';
+import { transitionGap } from '@classytic/vixel-schema';
 import { clamp } from './time.js';
 
 export function isVisualTrack(t: Track): t is VisualTrack {
@@ -55,7 +56,7 @@ export function layoutLane(track: VisualTrack): ClipLayout[] {
     .map((clip, index) => ({ clip, index }))
     .sort((a, b) => a.clip.at - b.clip.at);
   const transitionAfter = (i: number): TransitionRef | undefined => {
-    const s = track.transitions?.find((t) => t.between[0] === i && t.between[1] === i + 1);
+    const s = track.transitions?.find((t) => transitionGap(track, t) === i);
     return s && s.transition.id !== 'none' ? s.transition : undefined;
   };
   const last = order.length - 1;
@@ -186,6 +187,47 @@ export function withClipPatch(
   if (!existing) return spec;
   clips[clipIndex] = { ...existing, ...patch };
   return withTrack(spec, trackIndex, reflowSequential({ ...track, clips }));
+}
+
+/** dB gain that counts as "muted" for an audio item / a muted-track derivation. */
+export const MUTE_DB = -60;
+
+/**
+ * Hide / show a WHOLE visual lane — sets `hidden` on EVERY clip (the lane-level
+ * counterpart of {@link withClipPatch}). A no-op for audio lanes. This is why
+ * "hide layer" must live here, not in app code: a lane has many clips and toggling
+ * only the head silently leaves the rest visible.
+ */
+export function withTrackHidden(spec: VixelSpec, trackIndex: number, hidden: boolean): VixelSpec {
+  const track = spec.tracks[trackIndex];
+  if (!track || !isVisualTrack(track)) return spec;
+  const clips = track.clips.map((c) => ({ ...c, hidden }));
+  return withTrack(spec, trackIndex, { ...track, clips });
+}
+
+/**
+ * Mute / unmute a WHOLE lane. Visual → every VIDEO clip's `muted` flag (text/image/
+ * shape have no audio). Audio → every item's gain, stashing the pre-mute gain in
+ * `metadata._preMuteGain` so unmute restores the exact level. Lane-level counterpart
+ * of the per-item mute in {@link useTimelineItemActions}.
+ */
+export function withTrackMuted(spec: VixelSpec, trackIndex: number, muted: boolean): VixelSpec {
+  const track = spec.tracks[trackIndex];
+  if (!track) return spec;
+  if (isVisualTrack(track)) {
+    const clips = track.clips.map((c) => (c.media.kind === 'video' ? { ...c, muted } : c));
+    return withTrack(spec, trackIndex, { ...track, clips });
+  }
+  if (isAudioTrack(track)) {
+    const items = track.items.map((it) => {
+      const meta = (it.metadata ?? {}) as Record<string, unknown>;
+      return muted
+        ? { ...it, gain: MUTE_DB, metadata: { ...meta, _preMuteGain: it.gain ?? 0 } }
+        : { ...it, gain: typeof meta._preMuteGain === 'number' ? (meta._preMuteGain as number) : 0 };
+    });
+    return withTrack(spec, trackIndex, { ...track, items });
+  }
+  return spec;
 }
 
 /** Reorder a clip within a sequential lane (then re-flow `at`), returning a new spec. */
@@ -430,7 +472,12 @@ export function withTransition(
 ): VixelSpec {
   const track = spec.tracks[trackIndex];
   if (!track || !isVisualTrack(track)) return spec;
-  const kept = (track.transitions ?? []).filter((t) => !(t.between[0] === gap && t.between[1] === gap + 1));
-  const transitions = ref ? [...kept, { between: [gap, gap + 1] as [number, number], transition: ref }] : kept;
+  // Write the CANONICAL id-based pair (stable across inserts/moves); fall back to
+  // indices only if the clips lack ids (an un-normalized spec).
+  const a = track.clips[gap]?.id;
+  const b = track.clips[gap + 1]?.id;
+  const between: [string, string] | [number, number] = a && b ? [a, b] : [gap, gap + 1];
+  const kept = (track.transitions ?? []).filter((t) => transitionGap(track, t) !== gap);
+  const transitions = ref ? [...kept, { between, transition: ref }] : kept;
   return withTrack(spec, trackIndex, reflowSequential({ ...track, transitions }));
 }

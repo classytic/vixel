@@ -7,6 +7,9 @@
  * {@link FeatureConfig}.
  */
 import type { VixelSpec, Track, VisualClip, AudioItem } from '@classytic/vixel-schema';
+import type { EditorCommand } from './shared/utils/commands.js';
+
+export type { EditorCommand, EditorCommandType } from './shared/utils/commands.js';
 
 /**
  * Which editor capabilities are exposed in this mount. Capabilities always
@@ -45,8 +48,14 @@ export const ALL_FEATURES: Required<FeatureConfig> = {
  */
 export type SelectionKind = 'clip' | 'audio';
 
-/** A pointer into the spec identifying the currently-selected item, or `null`. */
-export interface SelectionRef {
+/**
+ * A POSITIONAL pointer used to ISSUE a selection — "the item at this lane/slot",
+ * i.e. where the user clicked. Consumers build it from what they're rendering and
+ * pass it to `select(...)`; the store immediately resolves it to a stable, id-keyed
+ * {@link SelectionRef} for storage. Positions are fine as an INPUT (they name what
+ * was clicked right now); they are never STORED (a later insert/move would drift).
+ */
+export interface SelectionTarget {
   kind: SelectionKind;
   /** Index into `spec.tracks`. */
   trackIndex: number;
@@ -54,10 +63,34 @@ export interface SelectionRef {
   itemIndex: number;
 }
 
-/** A transition seam — the gap between clips `gap` and `gap + 1` of a sequential visual lane. */
-export interface SeamRef {
+/**
+ * The STORED selection — the currently-selected item addressed by stable IDENTITY,
+ * or `null`. Because it names the element by `id` (not position), it survives any
+ * insert / move / sort / undo above it with zero re-resolution: a stale position is
+ * impossible by construction. Resolve it to a live position/item on demand with
+ * `resolveSelection(spec, ref)`.
+ */
+export interface SelectionRef {
+  kind: SelectionKind;
+  /** Stable id of the selected clip / audio item. */
+  id: string;
+}
+
+/** A POSITIONAL pointer to a transition seam (the gap between clips `gap`/`gap + 1`
+ *  of a visual lane) used to ISSUE a seam selection. Resolved to a {@link SeamRef}. */
+export interface SeamTarget {
   trackIndex: number;
+  /** Lower clip index of the adjacent pair. */
   gap: number;
+}
+
+/** The STORED transition seam, addressed by stable IDS — the seam AFTER `afterClipId`
+ *  on lane `trackId`. Survives edits; resolve with `resolveSeam(spec, ref)`. */
+export interface SeamRef {
+  /** Stable lane id. */
+  trackId: string;
+  /** Stable id of the clip BEFORE the seam (the seam rides with this clip). */
+  afterClipId: string;
 }
 
 /** The full editor state held by the store. */
@@ -79,6 +112,9 @@ export interface EditorState {
   /** Whether there is an edit to undo / redo (drives toolbar buttons). */
   canUndo: boolean;
   canRedo: boolean;
+  /** Human-readable label of the next undo / redo step (for tooltips), if any. */
+  undoLabel?: string;
+  redoLabel?: string;
   /** Enabled capabilities for this mount. */
   features: Required<FeatureConfig>;
 }
@@ -92,6 +128,15 @@ export interface EditorActions {
   /** Ask the host to export the current spec (fires `onExport`). */
   requestExport: () => void;
 
+  // ── commands (the standard, id-addressed edit path) ──
+  /**
+   * Apply a typed, id-addressed {@link EditorCommand} — the standard edit entry
+   * point: one uniform path for the UI, AI agents, and telemetry, with a
+   * human-readable undo label. The imperative methods below are positional sugar
+   * over the same `with*()` primitives.
+   */
+  dispatch: (command: EditorCommand) => void;
+
   // ── history (undo / redo) ──
   /** Revert the last edit (rapid bursts like a drag coalesce into one step). */
   undo: () => void;
@@ -101,9 +146,10 @@ export interface EditorActions {
   clearHistory: () => void;
 
   // ── selection / transport (UI state) ──
-  select: (ref: SelectionRef | null) => void;
-  /** Select a transition seam (clears item selection); `null` to deselect. */
-  selectSeam: (seam: SeamRef | null) => void;
+  /** Select the item at a position (the store stores it by stable id). `null` clears. */
+  select: (target: SelectionTarget | null) => void;
+  /** Select a transition seam by position (clears item selection); `null` to deselect. */
+  selectSeam: (seam: SeamTarget | null) => void;
   /** Set (or clear) the transition on a seam — writes `VisualTrack.transitions[]`. */
   setTransition: (trackIndex: number, gap: number, ref: import('@classytic/vixel-schema').TransitionRef | null) => void;
   setPlayhead: (sec: number) => void;
@@ -131,6 +177,11 @@ export interface EditorActions {
   addClipAuto: (clip: VisualClip) => void;
   /** Move a whole visual lane to another stacking position (re-layering). */
   moveLane: (fromIndex: number, toIndex: number) => void;
+  /** Hide / show an ENTIRE visual lane (sets `hidden` on every clip). No-op for audio. */
+  setTrackHidden: (trackIndex: number, hidden: boolean) => void;
+  /** Mute / unmute an ENTIRE lane — a visual lane's video clips, or all audio items
+   *  (preserving each item's pre-mute gain for restore). */
+  setTrackMuted: (trackIndex: number, muted: boolean) => void;
 
   // ── audio edits ──
   updateAudioItem: (trackIndex: number, itemIndex: number, patch: Partial<AudioItem>) => void;

@@ -20,3 +20,8 @@ export type {
 } from './controller/store/createEditorStore.js';
 
 export { EditorStoreContext, EditorActionsContext } from './controller/context/EditorContext.js';
+
+// The typed, id-addressed command vocabulary (the standard edit path via
+// `actions.dispatch`). Re-exported here for command palettes / agent bridges.
+export { applyCommand, commandLabel } from '../shared/utils/commands.js';
+export type { EditorCommand, EditorCommandType } from '../shared/utils/commands.js';

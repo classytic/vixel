@@ -12,7 +12,8 @@
  * renderer-agnostic, so this is the only line that changes).
  */
 import type { VixelSpec } from '@classytic/vixel-schema';
-import { preloadAssets, renderScene, awaitVideoSeeks, createApp as createPixiApp, destroyApp, type MediaCache } from '../preview/pixi/index.js';
+import { registerSpecPacks } from '@classytic/vixel-schema';
+import { preloadAssets, renderScene, awaitVideoSeeks, loadEffectTextures, createApp as createPixiApp, destroyApp, type MediaCache } from '../preview/pixi/index.js';
 import { totalDurationSec } from '../shared/utils/spec.js';
 import { renderAudioMix, AUDIO_SAMPLE_RATE } from './audio.js';
 import { glFinish, waitEncoderQueue, gopInterval } from './scheduler.js';
@@ -106,6 +107,7 @@ export async function exportToMp4(spec: VixelSpec, opts: ExportOptions = {}): Pr
   const outH = even((app.canvas as HTMLCanvasElement).height);
   const bitrate = opts.bitrate ?? estimateBitrate(outW, outH, fps);
 
+  registerSpecPacks(spec); // self-contained inline packs must resolve before preload/render
   const cache: MediaCache = new Map();
   // Decode + mix audio up front (so the muxer is configured with both tracks).
   const [, audio] = await Promise.all([
@@ -114,6 +116,7 @@ export async function exportToMp4(spec: VixelSpec, opts: ExportOptions = {}): Pr
     // Determinism/readiness: text must not rasterize with a FALLBACK font mid-export
     // (the wrong-font / white-box class). Block until web fonts are ready.
     awaitFontsReady(),
+    loadEffectTextures(PIXI, spec), // BYO shader texture INPUTS bound during render (kept last: preserves `audio` index)
   ]);
   const numCh = audio?.numberOfChannels ?? 2;
 

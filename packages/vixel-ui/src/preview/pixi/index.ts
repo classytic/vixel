@@ -23,6 +23,8 @@ export {
   loadFonts,
   loadLuts,
   loadShaders,
+  loadEffectTextures,
+  collectEffectTextureUrls,
   PIXI_EFFECT_IDS,
   registerPixiEffect,
   trackAnimatedFilter,

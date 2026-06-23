@@ -17,6 +17,11 @@
  * missing install fails loud with an actionable message.
  */
 import type { VisualClip, ShapeMedia } from './schema.js';
+import { shapeVertices } from '@classytic/vixel-schema';
+
+/** Escape a user-authored string for safe inclusion in an XML attribute (the `path` d). */
+const xmlAttr = (s: string): string =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /** Where the rasterized PNG sits + how big it is, in canvas pixels. */
 export interface RasterizedShape {
@@ -99,16 +104,33 @@ function shapeSvg(ov: ShapeMedia, wpx: number, hpx: number, pad: number): string
   const w = Math.max(0, wpx - sw);
   const h = Math.max(0, hpx - sw);
 
+  const fillCommon = `fill="${fillAttr}" fill-opacity="${fillOpacity}"${strokeAttr}${shadowFilter}`;
   let body: string;
   if (kind === 'line') {
-    body = `<line x1="${pad}" y1="${pad}" x2="${pad + wpx}" y2="${pad + hpx}"${strokeAttr}/>`;
+    // Horizontal rule across the frame's vertical centre (rotate via transform).
+    const my = pad + hpx / 2;
+    body = `<line x1="${pad}" y1="${my}" x2="${pad + wpx}" y2="${my}"${strokeAttr}/>`;
   } else if (kind === 'ellipse') {
-    body = `<ellipse cx="${pad + wpx / 2}" cy="${pad + hpx / 2}" rx="${w / 2}" ry="${h / 2}" fill="${fillAttr}" fill-opacity="${fillOpacity}"${strokeAttr}${shadowFilter}/>`;
+    body = `<ellipse cx="${pad + wpx / 2}" cy="${pad + hpx / 2}" rx="${w / 2}" ry="${h / 2}" ${fillCommon}/>`;
   } else if (kind === 'rect') {
-    body = `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fillAttr}" fill-opacity="${fillOpacity}"${strokeAttr}${shadowFilter}/>`;
+    body = `<rect x="${x}" y="${y}" width="${w}" height="${h}" ${fillCommon}/>`;
+  } else if (kind === 'triangle' || kind === 'polygon' || kind === 'star') {
+    // Shared geometry (matches the Pixi preview), centred in the stroke-inset box.
+    const cxp = pad + wpx / 2;
+    const cyp = pad + hpx / 2;
+    const pts = shapeVertices(kind, w, h, { sides: ov.sides, points: ov.points, innerRatio: ov.innerRatio })
+      .map(([px, py]) => `${(cxp + px).toFixed(2)},${(cyp + py).toFixed(2)}`)
+      .join(' ');
+    body = `<polygon points="${pts}" ${fillCommon}/>`;
+  } else if (kind === 'path' && ov.path) {
+    // Arbitrary SVG path, authored in `pathViewBox` coords, stretched to fill the frame.
+    const vb = ov.pathViewBox;
+    body = `<svg x="${pad}" y="${pad}" width="${wpx}" height="${hpx}" viewBox="0 0 ${num(vb?.w, 100)} ${num(vb?.h, 100)}" preserveAspectRatio="none"><path d="${xmlAttr(ov.path)}" ${fillCommon}/></svg>`;
   } else {
-    const r = Math.max(0, Math.min(num(ov.cornerRadius, 0), w / 2, h / 2));
-    body = `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" ry="${r}" fill="${fillAttr}" fill-opacity="${fillOpacity}"${strokeAttr}${shadowFilter}/>`;
+    // roundedRect — unset radius defaults to a visible proportional round (~12%).
+    const def = Math.min(w, h) * 0.12;
+    const r = Math.max(0, Math.min(ov.cornerRadius != null ? ov.cornerRadius : def, w / 2, h / 2));
+    body = `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" ry="${r}" ${fillCommon}/>`;
   }
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${defs.length ? `<defs>${defs.join('')}</defs>` : ''}${body}</svg>`;
@@ -122,8 +144,17 @@ function maskSvg(ov: ShapeMedia, wpx: number, hpx: number): string {
     body = `<ellipse cx="${wpx / 2}" cy="${hpx / 2}" rx="${wpx / 2}" ry="${hpx / 2}" fill="#FFFFFF"/>`;
   } else if (kind === 'rect') {
     body = `<rect x="0" y="0" width="${wpx}" height="${hpx}" fill="#FFFFFF"/>`;
+  } else if (kind === 'triangle' || kind === 'polygon' || kind === 'star') {
+    const pts = shapeVertices(kind, wpx, hpx, { sides: ov.sides, points: ov.points, innerRatio: ov.innerRatio })
+      .map(([px, py]) => `${(wpx / 2 + px).toFixed(2)},${(hpx / 2 + py).toFixed(2)}`)
+      .join(' ');
+    body = `<polygon points="${pts}" fill="#FFFFFF"/>`;
+  } else if (kind === 'path' && ov.path) {
+    const vb = ov.pathViewBox;
+    body = `<svg width="${wpx}" height="${hpx}" viewBox="0 0 ${num(vb?.w, 100)} ${num(vb?.h, 100)}" preserveAspectRatio="none"><path d="${xmlAttr(ov.path)}" fill="#FFFFFF"/></svg>`;
   } else {
-    const r = Math.max(0, Math.min(num(ov.cornerRadius, 0), wpx / 2, hpx / 2));
+    const def = Math.min(wpx, hpx) * 0.12;
+    const r = Math.max(0, Math.min(ov.cornerRadius != null ? ov.cornerRadius : def, wpx / 2, hpx / 2));
     body = `<rect x="0" y="0" width="${wpx}" height="${hpx}" rx="${r}" ry="${r}" fill="#FFFFFF"/>`;
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${wpx}" height="${hpx}" viewBox="0 0 ${wpx} ${hpx}"><rect width="${wpx}" height="${hpx}" fill="#000000"/>${body}</svg>`;

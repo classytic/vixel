@@ -64,7 +64,10 @@ export interface RetainedNode {
   boxSig?: string;
   /** Signature of the applied BoxStyle (radius/border/shadow + box geometry). */
   styleSig?: string;
+  /** Signature of the effect PROGRAMS (recompile trigger; excludes live shader params). */
   effectsSig?: string;
+  /** Signature of live shader param VALUES (number/color/boolean) — updates uniforms, no recompile. */
+  liveSig?: string;
   shapeSig?: string;
   maskSig?: string;
   /** Per-word caption Text objects (karaoke/highlight) — laid out under `wordRow`. */

@@ -15,7 +15,8 @@
 import { ConfigError } from '../errors.js';
 import { snapToFrame, toFrames } from '../core/time.js';
 import { resolveToPath } from '../core/media-reference.js';
-import type { VisualClip, SequenceTransition, SourceRef } from './schema.js';
+import { transitionGap } from '@classytic/vixel-schema';
+import type { VisualClip, VisualTrack, SequenceTransition, SourceRef } from './schema.js';
 
 export interface PlannedClip {
   /** ffmpeg input index. */
@@ -84,13 +85,16 @@ function clipSourceRef(clip: VisualClip): { source: SourceRef; trimStart: number
  * Omitting `fps` keeps the legacy float-seconds behavior.
  */
 /** Resolve the transition on gap i (between clip i-1 and i) from the lane's
- *  first-class `transitions[]` (clip-level transitions no longer exist). */
+ *  first-class `transitions[]`. Uses the shared `transitionGap` resolver so both
+ *  id- and index-based `between` refs work. */
 function gapTransition(
   i: number,
+  clips: VisualClip[],
   trackTransitions: SequenceTransition[] | undefined,
 ): { id: string; duration: number } | null {
   if (!trackTransitions) return null;
-  const s = trackTransitions.find((st) => st.between[0] === i - 1 && st.between[1] === i);
+  const lane = { type: 'visual', clips } as VisualTrack;
+  const s = trackTransitions.find((st) => transitionGap(lane, st) === i - 1);
   return s && s.transition.id !== 'none' ? { id: s.transition.id, duration: s.transition.duration } : null;
 }
 
@@ -120,7 +124,7 @@ export function planTimeline(clips: VisualClip[], fps?: number, trackTransitions
   let hasTransitions = false;
 
   for (let i = 1; i < clips.length; i++) {
-    const gap = gapTransition(i, trackTransitions); // transition INTO clip i
+    const gap = gapTransition(i, clips, trackTransitions); // transition INTO clip i
     const dur = gap ? snap(Math.max(0, gap.duration)) : 0;
     if (dur > 0) {
       hasTransitions = true;

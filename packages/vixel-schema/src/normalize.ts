@@ -12,9 +12,12 @@
  */
 import type { VixelSpec } from './spec.js';
 import type { Track } from './track.js';
-import type { VisualClip } from './visual.js';
+import type { VisualClip, VisualTrack } from './visual.js';
+import { transitionGap } from './visual.js';
 import { resolvePlacement } from './layout.js';
 import { inlineShapePreset } from './shape-presets.js';
+import { mintIds } from './ids.js';
+import { mintMarkerIds } from './marker.js';
 
 function normalizeClip(c: VisualClip): VisualClip {
   let clip = c;
@@ -30,10 +33,32 @@ function normalizeClip(c: VisualClip): VisualClip {
   return clip;
 }
 
-/** Resolve a spec's shorthands to the explicit shape renderers read. Idempotent. */
+/** Resolve a visual lane's transitions to the canonical ID-based `between` form
+ *  (index shorthand → the adjacent clips' ids). Stale transitions (the pair is no
+ *  longer adjacent) are dropped. Runs AFTER ids are minted. Pure + idempotent. */
+function normalizeTransitions(track: VisualTrack): VisualTrack {
+  if (!track.transitions?.length) return track;
+  const transitions = track.transitions.flatMap((t) => {
+    const gap = transitionGap(track, t);
+    if (gap === undefined) return []; // pair not adjacent → stale, drop
+    const a = track.clips[gap]!.id;
+    const b = track.clips[gap + 1]!.id;
+    return a && b ? [{ ...t, between: [a, b] as [string, string] }] : [];
+  });
+  return { ...track, transitions };
+}
+
+/** Resolve a spec's shorthands to the explicit shape renderers read, and mint
+ *  stable element ids. Pure + idempotent (existing ids and frames are preserved). */
 export function normalizeSpec(spec: VixelSpec): VixelSpec {
   const tracks: Track[] = spec.tracks.map((t) =>
     t.type === 'visual' ? { ...t, clips: t.clips.map(normalizeClip) } : t,
   );
-  return { ...spec, tracks };
+  // Mint stable ids FIRST so every track/clip/item is identity-addressable, then
+  // resolve transition `between` refs to those ids.
+  const minted = mintMarkerIds(mintIds({ ...spec, tracks }));
+  return {
+    ...minted,
+    tracks: minted.tracks.map((t) => (t.type === 'visual' ? normalizeTransitions(t) : t)),
+  };
 }

@@ -29,6 +29,7 @@ import type { CaptionCue, TextStyle } from './captions.js';
 import type { ShapeKind, ShapeStyle } from './shape.js';
 import type { TransitionRef } from './transitions.js';
 import type { ClipMask } from './mask.js';
+import type { Marker } from './marker.js';
 
 /** Compositing blend for a visual clip against what's beneath it.
  *  Mirrors the common NLE set (CapCut: Normal/Overlay/Screen/Darken/Brighten —
@@ -82,6 +83,9 @@ export type MediaKind = MediaSource['kind'];
 export interface VisualClip {
   /** Stable id for editor selection/keying. */
   id?: string;
+  /** Link-group id — couples this clip to its partner audio/video so edits carry
+   *  the whole group in sync (J/L cuts, detached audio). See `./link`. */
+  linkId?: string;
   media: MediaSource;
   /** Global start time (seconds). */
   at: number;
@@ -113,15 +117,39 @@ export interface VisualClip {
   /** Hidden — skipped by renderer + preview (editor visibility toggle). */
   hidden?: boolean;
   group?: string;
+  /** Clip-relative time anchors (seconds from the clip's start) — follow the clip
+   *  when it moves. See `./marker`. */
+  markers?: Marker[];
+  /**
+   * TEMPLATE SLOT marker — flags this clip as a user-fillable slot in a template
+   * ({@link Template}). A media slot is typically an empty-source placeholder the
+   * editor's fill flow (or an agent) populates; a text slot is editable copy. The
+   * surrounding (non-slot) clips are the locked design. Drives the "fill these N
+   * slots" UI and lets an agent pick a template + fill it. Geometry/animation come
+   * from the clip itself, so a slot keeps the template's designed look.
+   */
+  slot?: {
+    /** Unique-within-template id. */
+    id: string;
+    /** Human label for the fill UI ("Background", "Webcam", "Title"). */
+    label?: string;
+    /** Fill kind — what the user supplies. Defaults to the clip's media kind. */
+    kind?: 'media' | 'text';
+    /** Optional ordering/semantic hint. */
+    role?: string;
+  };
   metadata?: Record<string, unknown>;
 }
 
 /**
- * A transition placed BETWEEN two adjacent clips on a visual lane. `between` is
- * the pair of clip indices `[i, i+1]`; it overlaps clip `i` into clip `i+1`.
+ * A transition between two ADJACENT clips on a visual lane. `between` references
+ * the clip pair as either stable clip IDS `[idA, idB]` (canonical) or, as an
+ * authoring shorthand, clip INDICES `[i, i+1]` — `normalizeSpec` resolves indices
+ * to ids (like {@link SourceRef}'s string/object duality), so consumers read one
+ * id-based form via {@link transitionGap}. Overlaps clip A into clip B.
  */
 export interface SequenceTransition {
-  between: [number, number];
+  between: [string, string] | [number, number];
   transition: TransitionRef;
 }
 
@@ -134,11 +162,33 @@ export interface SequenceTransition {
  */
 export interface VisualTrack {
   type: 'visual';
+  /** Stable lane id (minted by `normalizeSpec` via `mintIds`). Lets selections,
+   *  edits, and transitions reference a lane by identity, not array position. */
+  id?: string;
   clips: VisualClip[];
   /** Cross-dissolves between adjacent clips on THIS lane (main-track style). */
   transitions?: SequenceTransition[];
   /** Clips lie end-to-end (a main track). Editor snap/ripple/insert hint. */
   sequential?: boolean;
+}
+
+/* ── transition helpers ───────────────────────────────────────────────────── */
+
+/**
+ * Resolve a {@link SequenceTransition} to the GAP index it occupies on `track` —
+ * i.e. the index of the FIRST clip of the adjacent pair (`gap`/`gap+1`). Handles
+ * both `between` forms (ids or indices) and returns undefined when the pair is not
+ * two adjacent clips (e.g. a clip was inserted between them — the transition is
+ * stale and should be ignored). The single resolver every renderer/editor uses so
+ * none re-implement the (id|index)→position logic. Pure.
+ */
+export function transitionGap(track: VisualTrack, t: SequenceTransition): number | undefined {
+  const [a, b] = t.between;
+  if (typeof a === 'number' && typeof b === 'number') {
+    return b === a + 1 && a >= 0 && a + 1 < track.clips.length ? a : undefined;
+  }
+  const ia = track.clips.findIndex((c) => c.id === a);
+  return ia >= 0 && track.clips[ia + 1]?.id === b ? ia : undefined;
 }
 
 /* ── source helpers ───────────────────────────────────────────────────────── */

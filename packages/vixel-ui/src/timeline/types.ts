@@ -4,6 +4,8 @@ import type { SelectionKind } from '../types.js';
 /** A laid-out timeline item (a visual clip or an audio item) in absolute seconds. */
 export interface TimelineItem {
   selectionKind: SelectionKind;
+  /** Stable id of the underlying clip / audio item — the identity a selection keys on. */
+  id?: string;
   /** Index into `spec.tracks`. */
   trackIndex: number;
   /** Index within the lane's `clips` / `items`. */

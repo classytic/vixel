@@ -1,10 +1,12 @@
 /**
- * Vector SHAPE clip reconciler (rect/roundedRect/ellipse/line) + the media
- * PLACEHOLDER frame for a sourceless image/video clip. Both draw via Pixi Graphics.
+ * Vector SHAPE clip reconciler (rect/roundedRect/ellipse/line/triangle/polygon/
+ * star/path) + the media PLACEHOLDER frame for a sourceless image/video clip. Both
+ * draw via Pixi Graphics. Polygonal geometry comes from the schema's shared
+ * `shapeVertices` so the preview matches the server SVG raster exactly.
  */
 import type * as PIXINS from 'pixi.js';
 import type { VisualClip } from '@classytic/vixel-schema';
-import { entranceAt, resolveEntranceOptions } from '@classytic/vixel-schema';
+import { entranceAt, resolveEntranceOptions, shapeVertices } from '@classytic/vixel-schema';
 import type { Pixi, ElementLayout, RetainedScene } from '../types.js';
 import { ensureNode, boxOf, applyNodeRotation, composeNodeFilters, disposeEffectFilters, setZ } from '../node.js';
 import { applyBoxStyle } from '../graphics/boxstyle.js';
@@ -42,21 +44,59 @@ export function reconcileShapeClip(
   const e = entranceAt(clip.enter, clip.exit, localT, dur, resolveEntranceOptions(clip.motionTiming));
   const alpha = (transform?.opacity ?? 1) * e.opacity;
 
-  const shapeSig = JSON.stringify([kind, w, h, media.cornerRadius, media.fill, media.stroke, media.backdrop]);
+  const shapeSig = JSON.stringify([
+    kind, w, h, media.cornerRadius, media.sides, media.points, media.innerRatio,
+    media.path, media.pathViewBox, media.fill, media.stroke, media.backdrop,
+  ]);
   if (node.shapeSig !== shapeSig) {
     g.clear();
     if (kind === 'line') {
-      g.moveTo(-cx, -cy).lineTo(cx, cy);
+      // A horizontal rule across the frame's vertical centre (rotate for other angles).
+      g.moveTo(-cx, 0).lineTo(cx, 0);
     } else if (kind === 'ellipse') {
       g.ellipse(0, 0, cx, cy);
     } else if (kind === 'rect') {
       g.rect(-cx, -cy, w, h);
+    } else if (kind === 'triangle' || kind === 'polygon' || kind === 'star') {
+      const pts = shapeVertices(kind, w, h, { sides: media.sides, points: media.points, innerRatio: media.innerRatio });
+      g.poly(pts.flat(), true);
+    } else if (kind === 'path') {
+      // Arbitrary SVG path, authored in `pathViewBox` coords, scaled to fill the
+      // frame and centred on the node origin (so rotation pivots correctly).
+      const vb = media.pathViewBox ?? { w: 100, h: 100 };
+      const sx = w / (vb.w || 100);
+      const sy = h / (vb.h || 100);
+      const m = new PIXI.Matrix(sx, 0, 0, sy, -cx, -cy);
+      if (media.path) g.path(new PIXI.GraphicsPath(media.path).transform(m));
     } else {
-      const r = Math.max(0, Math.min(media.cornerRadius ?? 0, cx, cy));
+      // roundedRect — unset radius defaults to a visible proportional round.
+      const def = Math.min(cx, cy) * 0.24;
+      const r = Math.max(0, Math.min(media.cornerRadius ?? def, cx, cy));
       g.roundRect(-cx, -cy, w, h, r);
     }
-    if (kind !== 'line' && media.fill?.color) {
-      g.fill({ color: media.fill.color, alpha: media.fill.opacity ?? 1 });
+    if (kind !== 'line' && media.fill) {
+      const grad = media.fill.gradient;
+      if (grad) {
+        // Linear gradient (schema: 0deg = left→right), mirrors the text-gradient
+        // path — `textureSpace: 'local'` maps the stops to the shape's 0..1 bounds.
+        const a = ((grad.angle ?? 0) * Math.PI) / 180;
+        const cos = Math.cos(a);
+        const sin = Math.sin(a);
+        g.fill(
+          new PIXI.FillGradient({
+            type: 'linear',
+            start: { x: 0.5 - 0.5 * cos, y: 0.5 - 0.5 * sin },
+            end: { x: 0.5 + 0.5 * cos, y: 0.5 + 0.5 * sin },
+            colorStops: [
+              { offset: 0, color: grad.from },
+              { offset: 1, color: grad.to },
+            ],
+            textureSpace: 'local',
+          }),
+        );
+      } else if (media.fill.color) {
+        g.fill({ color: media.fill.color, alpha: media.fill.opacity ?? 1 });
+      }
     }
     if (media.stroke) {
       g.stroke({ color: media.stroke.color, width: media.stroke.width, alpha: media.stroke.opacity ?? 1 });
