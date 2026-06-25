@@ -7,6 +7,7 @@
  */
 import type { VixelSpec } from './spec.js';
 import type { VisualTrack } from './visual.js';
+import { audioItemDurationSec } from './audio.js';
 
 /** Latest end time (seconds) of any clip on a visual lane. */
 export function visualTrackEndSec(track: VisualTrack): number {
@@ -23,8 +24,7 @@ export function totalDurationSec(spec: VixelSpec): number {
       max = Math.max(max, visualTrackEndSec(track));
     } else {
       for (const it of track.items ?? []) {
-        const dur = it.out != null ? Math.max(0, it.out - (it.in ?? 0)) : 0;
-        max = Math.max(max, (it.at ?? 0) + dur);
+        max = Math.max(max, (it.at ?? 0) + audioItemDurationSec(it));
       }
     }
   }

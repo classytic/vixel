@@ -96,3 +96,57 @@ export function removeMarker(spec: VixelSpec, markerId: string): VixelSpec {
   if (!spec.markers?.some((m) => m.id === markerId)) return spec;
   return { ...spec, markers: spec.markers.filter((m) => m.id !== markerId) };
 }
+
+/** Patch a marker's fields (label / color / kind / at). Returns a NEW spec (same ref
+ *  if the id is unknown); re-sorts when `at` changes. Pure. */
+export function updateMarker(spec: VixelSpec, markerId: string, patch: Partial<Omit<Marker, 'id'>>): VixelSpec {
+  if (!spec.markers?.some((m) => m.id === markerId)) return spec;
+  const markers = spec.markers.map((m) => (m.id === markerId ? { ...m, ...patch } : m));
+  return { ...spec, markers: patch.at != null ? sortMarkers(markers) : markers };
+}
+
+/* ── chapter export (pure; no ffmpeg) ─────────────────────────────────────── */
+
+/** Seconds → `HH:MM:SS.mmm` (WebVTT timestamp). */
+function vttTimestamp(sec: number): string {
+  const s = Math.max(0, sec);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const secs = s % 60;
+  const pad = (n: number, w = 2) => String(Math.floor(n)).padStart(w, '0');
+  const ms = Math.round((secs - Math.floor(secs)) * 1000);
+  return `${pad(h)}:${pad(m)}:${pad(Math.floor(secs))}.${pad(ms, 3)}`;
+}
+
+/**
+ * Render markers as a WebVTT CHAPTERS track: each marker spans from its time to the
+ * next marker (the last runs to `totalSec`). Unlabeled markers become "Chapter N".
+ * Markers at/after `totalSec` are dropped. Returns '' when there are no chapters.
+ * The portable, no-ffmpeg sidecar (YouTube/players read it). Pure.
+ */
+export function markersToVtt(markers: readonly Marker[], totalSec: number): string {
+  const chapters = sortMarkers(markers.filter((m) => m.at < totalSec));
+  if (chapters.length === 0) return '';
+  const cues = chapters.map((m, i) => {
+    const end = i + 1 < chapters.length ? chapters[i + 1]!.at : totalSec;
+    const title = m.label?.trim() || `Chapter ${i + 1}`;
+    return `${i + 1}\n${vttTimestamp(m.at)} --> ${vttTimestamp(end)}\n${title}`;
+  });
+  return `WEBVTT\n\n${cues.join('\n\n')}\n`;
+}
+
+/**
+ * Render markers as an ffmpeg FFMETADATA chapter file (the input to a `-map_metadata`
+ * embed). Provided as pure data so a host that wants chapters burned INTO the MP4
+ * container can pass this to ffmpeg — vixel's renderer needs no marker knowledge. Pure.
+ */
+export function markersToFfmetadata(markers: readonly Marker[], totalSec: number): string {
+  const chapters = sortMarkers(markers.filter((m) => m.at < totalSec));
+  if (chapters.length === 0) return ';FFMETADATA1\n';
+  const blocks = chapters.map((m, i) => {
+    const end = i + 1 < chapters.length ? chapters[i + 1]!.at : totalSec;
+    const title = m.label?.trim() || `Chapter ${i + 1}`;
+    return `[CHAPTER]\nTIMEBASE=1/1000\nSTART=${Math.round(m.at * 1000)}\nEND=${Math.round(end * 1000)}\ntitle=${title}`;
+  });
+  return `;FFMETADATA1\n${blocks.join('\n')}\n`;
+}

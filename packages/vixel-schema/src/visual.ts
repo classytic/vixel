@@ -41,6 +41,9 @@ export interface VideoMedia {
   source: SourceRef;
   /** Seconds into the SOURCE where playback starts (on-screen length = clip `duration`). */
   trimStart?: number;
+  /** Repeat the trimmed source to fill the clip's `duration` instead of freezing /
+   *  going black once the source ends — for looping b-roll / background video. */
+  loop?: boolean;
   blend?: BlendMode;
 }
 export interface ImageMedia {
@@ -205,4 +208,11 @@ export function sourceUrl(source: SourceRef): string {
 /** Heuristic: does this source point at a video (vs an image)? Extension-based. */
 export function isVideoSource(source: SourceRef): boolean {
   return VIDEO_EXT.test(sourceUrl(source));
+}
+
+/** Make a VIDEO clip loop its trimmed source to fill `seconds` on the timeline.
+ *  Returns a NEW clip (unchanged if the clip isn't a video). Pure. */
+export function loopVideoToFill(clip: VisualClip, seconds: number): VisualClip {
+  if (clip.media.kind !== 'video') return clip;
+  return { ...clip, duration: Math.max(0, seconds), media: { ...clip.media, loop: true } };
 }

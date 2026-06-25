@@ -52,5 +52,7 @@ export * from './marker.js';
 export * from './timeline.js';
 export * from './ripple.js';
 export * from './transcript.js';
+export * from './edit.js';
+export * from './commands.js';
 export * from './normalize.js';
 export * from './templates.js';

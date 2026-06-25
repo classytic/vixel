@@ -96,3 +96,55 @@ export function areLinked(spec: VixelSpec, a: string, b: string): boolean {
   const la = linkIdOf(spec, a);
   return la != null && la === linkIdOf(spec, b);
 }
+
+/* ── mutators ─────────────────────────────────────────────────────────────── */
+
+/** Mint a link id (`ln{n}`) not already used by any element. Deterministic. */
+function freshLinkId(spec: VixelSpec): string {
+  const used = new Set<string>();
+  for (const t of spec.tracks) {
+    if (t.type === 'visual') {
+      for (const c of t.clips) if (c.linkId) used.add(c.linkId);
+    } else {
+      for (const it of t.items) if (it.linkId) used.add(it.linkId);
+    }
+  }
+  let n = 0;
+  let id: string;
+  do {
+    id = `ln${(n += 1)}`;
+  } while (used.has(id));
+  return id;
+}
+
+/**
+ * Couple every element in `ids` under a SHARED link id (minted if omitted), so a
+ * later move / trim / ripple / delete carries the whole group. Overwrites any prior
+ * `linkId` on those elements. Returns a NEW spec. Pure.
+ */
+export function linkElements(spec: VixelSpec, ids: readonly string[], linkId?: string): VixelSpec {
+  if (ids.length === 0) return spec;
+  const set = new Set(ids);
+  const lid = linkId ?? freshLinkId(spec);
+  const tracks = spec.tracks.map((t) =>
+    t.type === 'visual'
+      ? { ...t, clips: t.clips.map((c) => (c.id && set.has(c.id) ? { ...c, linkId: lid } : c)) }
+      : { ...t, items: t.items.map((it) => (it.id && set.has(it.id) ? { ...it, linkId: lid } : it)) },
+  );
+  return { ...spec, tracks };
+}
+
+/** Remove the link (`linkId`) from every element in `ids`. Returns a NEW spec. Pure. */
+export function unlinkElements(spec: VixelSpec, ids: readonly string[]): VixelSpec {
+  if (ids.length === 0) return spec;
+  const set = new Set(ids);
+  const strip = <T extends { id?: string; linkId?: string }>(el: T): T => {
+    if (!(el.id && set.has(el.id) && el.linkId)) return el;
+    const { linkId: _drop, ...rest } = el;
+    return rest as T;
+  };
+  const tracks = spec.tracks.map((t) =>
+    t.type === 'visual' ? { ...t, clips: t.clips.map(strip) } : { ...t, items: t.items.map(strip) },
+  );
+  return { ...spec, tracks };
+}

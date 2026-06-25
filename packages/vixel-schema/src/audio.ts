@@ -32,7 +32,12 @@ export interface AudioItem {
    *  curve OR the auto-duck mix (see `duckEnvelope`). Overrides static `gain` while
    *  present; sampled by the mixer + preview via `sampleChannel`. */
   gainKeyframes?: Keyframe[];
+  /** Repeat the trimmed source `[in, out)` window to fill time on the timeline. */
   loop?: boolean;
+  /** When `loop`, the total seconds this item occupies on the timeline (the window
+   *  repeats to fill it). Omit ⇒ no intrinsic end (a bed the host fills to the
+   *  composition length). Ignored when `loop` is false. */
+  loopDuration?: number;
   role?: AudioRole;
   duck?: DuckSpec;
   fadeIn?: number;
@@ -40,4 +45,27 @@ export interface AudioItem {
   /** Optional group/template tag — editor grouping; ignored by render. */
   group?: string;
   metadata?: Record<string, unknown>;
+}
+
+/* ── duration + looping ───────────────────────────────────────────────────── */
+
+/** The trimmed source window length (seconds) — `out − in`, or 0 if `out` is unset. */
+export function audioWindowSec(item: AudioItem): number {
+  return item.out != null ? Math.max(0, item.out - (item.in ?? 0)) : 0;
+}
+
+/**
+ * On-timeline length (seconds) of an audio item. A non-looping item is its trimmed
+ * source window; a looping item with `loopDuration` plays for that long; a looping
+ * item without `loopDuration` has no intrinsic end (returns its window as a floor —
+ * the host fills it to the composition length). Pure.
+ */
+export function audioItemDurationSec(item: AudioItem): number {
+  if (item.loop && item.loopDuration != null) return Math.max(0, item.loopDuration);
+  return audioWindowSec(item);
+}
+
+/** Make an audio item loop and occupy `seconds` on the timeline. Returns a NEW item. Pure. */
+export function loopAudioToFill(item: AudioItem, seconds: number): AudioItem {
+  return { ...item, loop: true, loopDuration: Math.max(0, seconds) };
 }
