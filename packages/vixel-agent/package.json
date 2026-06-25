@@ -1,0 +1,61 @@
+{
+  "name": "@classytic/vixel-agent",
+  "version": "0.1.0",
+  "description": "Host-mountable agent tool surface over the VixelSpec — emits AI-SDK-shaped editing + perception tools an arc-ai agent (in-process) or an MCP host (external Claude/Cursor) drives. Framework-free; the host injects an AgentContext.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown && tsc --emitDeclarationOnly --outDir dist",
+    "dev": "tsdown --watch",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "vixel",
+    "video",
+    "agent",
+    "ai-video",
+    "agentic",
+    "mcp",
+    "ai-sdk",
+    "tools"
+  ],
+  "author": "Classytic",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@classytic/vixel-schema": ">=0.5.0"
+  },
+  "peerDependencies": {
+    "zod": ">=4.0.0"
+  },
+  "devDependencies": {
+    "@classytic/vixel-schema": ">=0.5.0",
+    "tsdown": "^0.22.3",
+    "typescript": "^5.3.0",
+    "vitest": "^4.0.0",
+    "zod": "^4.0.0"
+  }
+}
