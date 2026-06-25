@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.8.0] — 2026-06-25
+
+Requires **`@classytic/vixel-schema` ≥ 0.5.0**.
+
+### Added
+- **Looping in compose** — a video clip with `media.loop` repeats its trimmed source to
+  fill its on-timeline `duration` (`-stream_loop` on the input); the music bed honors
+  `loopDuration`. Output for non-looping specs is byte-identical (the loop path only
+  fires when `loop` is set).
+
 ## [0.5.0] — 2026-06-09
 
 The "premium primitives" release. Vixel grows from an HLS processor into a

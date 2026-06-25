@@ -6,10 +6,12 @@
  * live in the package; a client app turns on the subset it needs via
  * {@link FeatureConfig}.
  */
-import type { VixelSpec, Track, VisualClip, AudioItem } from '@classytic/vixel-schema';
+import type { VixelSpec, Track, VisualClip, AudioItem, ClipPatch } from '@classytic/vixel-schema';
 import type { EditorCommand } from './shared/utils/commands.js';
 
 export type { EditorCommand, EditorCommandType } from './shared/utils/commands.js';
+// ClipPatch moved to the schema's edit core (alongside applyCommand); re-exported here.
+export type { ClipPatch } from '@classytic/vixel-schema';
 
 /**
  * Which editor capabilities are exposed in this mount. Capabilities always
@@ -192,22 +194,6 @@ export interface EditorActions {
   addAudioItem: (item: AudioItem) => void;
   /** Patch the composition output (size / fps / background). */
   setOutput: (patch: Partial<VixelSpec['output']>) => void;
-}
-
-/** Patchable clip fields (subset of a {@link VisualClip} an editor mutates directly). */
-export interface ClipPatch {
-  at: number;
-  duration: number;
-  volume: number;
-  muted: boolean;
-  hidden: boolean;
-  media: VisualClip['media'];
-  enter: NonNullable<VisualClip['enter']>;
-  exit: NonNullable<VisualClip['exit']>;
-  motionTiming: NonNullable<VisualClip['motionTiming']>;
-  animation: NonNullable<VisualClip['animation']>;
-  effects: NonNullable<VisualClip['effects']>;
-  transform: NonNullable<VisualClip['transform']>;
 }
 
 /** Props for the {@link VixelEditor} root — the props-in client boundary. */

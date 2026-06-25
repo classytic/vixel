@@ -19,8 +19,13 @@ export interface ScheduledAudio {
   at: number;
   /** Source-time offset (trim in). */
   inSec: number;
-  /** On-screen duration (seconds); 0 ⇒ never active. */
+  /** On-timeline ACTIVE duration (seconds); 0 ⇒ never active. When looping, this is
+   *  the `loopDuration` fill length, not the source window. */
   dur: number;
+  /** Trimmed SOURCE window length (`out − in`, seconds) — the unit looped over. */
+  windowSec?: number;
+  /** Repeat the source window to fill `dur`. */
+  loop?: boolean;
   /** Static volume in dB (used only when there's no envelope). */
   gain: number;
   /** dB volume envelope over element-relative time (auto-duck / manual curve). */
@@ -36,8 +41,11 @@ export function collectScheduledAudio(spec: VixelSpec): ScheduledAudio[] {
       const src = sourceUrl(it.source);
       if (!src) return;
       const inSec = it.in ?? 0;
-      const dur = it.out != null ? Math.max(0, it.out - inSec) : 0;
-      out.push({ key: `${ti}:${i}:${src}`, src, at: it.at ?? 0, inSec, dur, gain: it.gain ?? 0, gainKeyframes: it.gainKeyframes });
+      const windowSec = it.out != null ? Math.max(0, it.out - inSec) : 0;
+      const loop = it.loop === true;
+      // Active for the loop-fill length when looping, else the trimmed window.
+      const dur = loop && it.loopDuration != null ? Math.max(0, it.loopDuration) : windowSec;
+      out.push({ key: `${ti}:${i}:${src}`, src, at: it.at ?? 0, inSec, dur, windowSec, loop, gain: it.gain ?? 0, gainKeyframes: it.gainKeyframes });
     });
   });
   // Transition SFX (whoosh/impact) — one-shot, lead-in 80ms so the hit builds INTO the
@@ -74,5 +82,10 @@ export interface AudioFrame {
 export function audioFrameAt(it: ScheduledAudio, playhead: number, isPlaying: boolean): AudioFrame {
   const active = it.dur > 0 && playhead >= it.at && playhead < it.at + it.dur;
   const volume = gainToLinear(effectiveGainDb(it, playhead));
-  return { shouldPlay: isPlaying && active && volume > 0, volume, seekTo: it.inSec + (playhead - it.at) };
+  const elapsed = playhead - it.at;
+  // Looping: wrap the elapsed time around the trimmed source window so the next
+  // frame re-seeks to the start when the source ends (fills `dur`).
+  const seekTo =
+    it.loop && it.windowSec && it.windowSec > 0 ? it.inSec + (elapsed % it.windowSec) : it.inSec + elapsed;
+  return { shouldPlay: isPlaying && active && volume > 0, volume, seekTo };
 }

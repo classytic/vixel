@@ -586,12 +586,18 @@ export function buildComposeGraph({
   const bg = assertSafeColor(spec.output.background ?? '#000000', 'output.background').replace('#', '0x');
   const n = plan.clips.length;
 
-  const inputs: ComposeInput[] = plan.clips.map((c) => {
+  const loopSrcClips = mainVisualTrack(spec)?.clips ?? [];
+  const inputs: ComposeInput[] = plan.clips.map((c, i) => {
+    const options: string[] = [];
+    // A looping VIDEO clip repeats its whole source at the demuxer so the trim can
+    // extend past the source length to fill the clip's `duration` (`-stream_loop -1`
+    // = repeat forever — the same flag the overlay video path uses).
+    const m = loopSrcClips[i]?.media;
+    if (m?.kind === 'video' && m.loop === true) options.push('-stream_loop', '-1');
     // A main-track GIF must LOOP its frames (animate) for the clip's duration;
-    // `-ignore_loop 0` honors the GIF's loop (same flag the overlay path uses).
-    // Images/videos are untouched (byte-identical to before).
-    const isGif = typeof c.source === 'string' && c.source.toLowerCase().endsWith('.gif');
-    return isGif ? { source: c.source, options: ['-ignore_loop', '0'] } : { source: c.source };
+    // `-ignore_loop 0` honors the GIF's loop. Non-looping images/videos are untouched.
+    if (typeof c.source === 'string' && c.source.toLowerCase().endsWith('.gif')) options.push('-ignore_loop', '0');
+    return options.length ? { source: c.source, options } : { source: c.source };
   });
   const bed = firstAudioItem(spec);
   const bedIndex = bed ? inputs.length : -1;
@@ -720,18 +726,21 @@ export function buildComposeGraph({
   // ── music bed (optional) ──
   if (bed && bedIndex >= 0) {
     const loop = bed.loop ? 'aloop=loop=-1:size=2147483647,' : '';
+    // A looping bed fills `loopDuration` (its "loop to fill" length); otherwise it
+    // spans the whole program. Fades reference the bed's actual end either way.
+    const bedDur = bed.loop && bed.loopDuration != null ? Math.max(0, bed.loopDuration) : plan.total;
     const vol = bed.gain !== undefined && bed.gain !== 1 ? `,volume=${gain(bed.gain)}` : '';
     const fade = [
       bed.fadeIn ? `afade=t=in:st=0:d=${bed.fadeIn}` : '',
-      bed.fadeOut ? `afade=t=out:st=${Math.max(0, plan.total - bed.fadeOut)}:d=${bed.fadeOut}` : '',
+      bed.fadeOut ? `afade=t=out:st=${Math.max(0, bedDur - bed.fadeOut)}:d=${bed.fadeOut}` : '',
     ]
       .filter(Boolean)
       .join(',');
     const fadePart = fade ? `,${fade}` : '';
-    // `apad` before `atrim` guarantees the bed is EXACTLY `total` long (pads a
+    // `apad` before `atrim` guarantees the bed is EXACTLY `bedDur` long (pads a
     // short bed with silence); A_NORM matches the program format for the mix.
     parts.push(
-      `[${bedIndex}:a]${loop}apad,atrim=duration=${plan.total},asetpts=PTS-STARTPTS${vol}${fadePart},${A_NORM}[bed]`,
+      `[${bedIndex}:a]${loop}apad,atrim=duration=${bedDur},asetpts=PTS-STARTPTS${vol}${fadePart},${A_NORM}[bed]`,
     );
 
     if (bed.duck) {

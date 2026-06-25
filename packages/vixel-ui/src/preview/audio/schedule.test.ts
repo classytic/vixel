@@ -77,3 +77,27 @@ describe('audioFrameAt — play/volume/seek target', () => {
     expect(audioFrameAt(m, 7, true).shouldPlay).toBe(false); // past out
   });
 });
+
+describe('audio looping', () => {
+  const loopSpec = (): VixelSpec => ({
+    version: 1,
+    output: { width: 1080, height: 1920, fps: 30 },
+    tracks: [
+      // 4s source window, looped to fill 20s on the timeline.
+      { type: 'audio', items: [{ source: 'bed.mp3', at: 0, in: 0, out: 4, loop: true, loopDuration: 20 }] },
+    ],
+  });
+
+  it('active for the full loopDuration, with the window length recorded', () => {
+    const it0 = collectScheduledAudio(loopSpec())[0]!;
+    expect(it0).toMatchObject({ dur: 20, windowSec: 4, loop: true });
+    expect(audioFrameAt(it0, 15, true).shouldPlay).toBe(true); // well past the 4s window
+  });
+
+  it('wraps the seek position modulo the source window', () => {
+    const it0 = collectScheduledAudio(loopSpec())[0]!;
+    expect(audioFrameAt(it0, 1, true).seekTo).toBe(1); // first pass
+    expect(audioFrameAt(it0, 5, true).seekTo).toBe(1); // 5 % 4 → back to 1s into source
+    expect(audioFrameAt(it0, 9, true).seekTo).toBe(1); // 9 % 4 → 1
+  });
+});

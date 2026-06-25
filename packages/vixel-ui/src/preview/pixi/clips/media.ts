@@ -53,9 +53,20 @@ export function reconcileMediaClip(
     const el = asset.el;
     if (el.readyState >= 2) {
       const trimStart = media.kind === 'video' ? media.trimStart ?? 0 : 0;
-      const want = Number.isFinite(el.duration)
-        ? Math.min(trimStart + localT, Math.max(0, el.duration - 0.05))
-        : trimStart + localT;
+      const loop = media.kind === 'video' && media.loop === true;
+      let want: number;
+      if (Number.isFinite(el.duration)) {
+        const srcEnd = Math.max(0, el.duration - 0.05);
+        if (loop) {
+          // Wrap clip-local time around the trimmed source so it repeats to fill `duration`.
+          const loopLen = srcEnd - trimStart;
+          want = loopLen > 0 ? trimStart + (((localT % loopLen) + loopLen) % loopLen) : trimStart;
+        } else {
+          want = Math.min(trimStart + localT, srcEnd); // freeze last frame past source end
+        }
+      } else {
+        want = trimStart + localT;
+      }
       // Only re-seek + re-upload the GPU texture when the target frame actually
       // changed — a paused re-render (another clip edited) must not re-upload the
       // same video frame every coalesced draw.

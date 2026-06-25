@@ -1,6 +1,6 @@
 {
   "name": "@classytic/vixel",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Composable FFmpeg primitives for AI/agentic video Ã¢â‚¬â€ typed, dry-runnable, tree-shakeable. Source, captions, profiles, and a declarative compose renderer.",
   "type": "module",
   "sideEffects": false,
@@ -91,7 +91,7 @@
     "node": ">=18.0.0"
   },
   "peerDependencies": {
-    "@classytic/vixel-schema": ">=0.2.0",
+    "@classytic/vixel-schema": ">=0.5.0",
     "fluent-ffmpeg": ">=2.1.0"
   },
   "optionalDependencies": {

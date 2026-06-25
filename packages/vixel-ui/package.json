@@ -1,6 +1,6 @@
 {
   "name": "@classytic/vixel-ui",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Headless, configurable React editor primitives for vixel. A timeline UI over the VixelSpec contract Ã¢â‚¬â€ agent-emittable, human-editable, render via @classytic/vixel.",
   "type": "module",
   "main": "./dist/index.js",
@@ -77,7 +77,7 @@
     "access": "public"
   },
   "peerDependencies": {
-    "@classytic/vixel-schema": ">=0.2.0",
+    "@classytic/vixel-schema": ">=0.5.0",
     "react": ">=19.0.0",
     "react-dom": ">=19.0.0"
   },
@@ -97,7 +97,7 @@
     "pixi.js": "^8.0.0"
   },
   "devDependencies": {
-    "@classytic/vixel-schema": ">=0.2.0",
+    "@classytic/vixel-schema": ">=0.5.0",
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react": "^16.0.0",
     "@types/react": "^19.0.0",

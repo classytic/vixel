@@ -12,6 +12,10 @@ export { TimelineTransitions } from './primitives/TimelineTransition.js';
 export type { TimelineTransitionsProps, SeamState } from './primitives/TimelineTransition.js';
 export { KeyframeRail } from './primitives/KeyframeRail.js';
 export type { KeyframeRailProps } from './primitives/KeyframeRail.js';
+export { MarkerRail } from './primitives/MarkerRail.js';
+export type { MarkerRailProps, MarkerState, MarkerApi } from './primitives/MarkerRail.js';
+export { useMarkers } from './controller/hooks/useMarkers.js';
+export type { UseMarkers } from './controller/hooks/useMarkers.js';
 export { useKeyframeRail } from './controller/hooks/useKeyframeRail.js';
 export type {
   UseKeyframeRail,
