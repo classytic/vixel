@@ -18,6 +18,8 @@ import { BUILTIN_TRANSITIONS, type TransitionDescriptor } from './transitions.js
 import type { TransitionRef } from './transitions.js';
 import { validateShaderDescriptor } from './shader-wrap.js';
 import { transitionGap } from './visual.js';
+import { listTemplates } from './templates.js';
+import { listThemes } from './theme.js';
 import type { VixelSpec } from './spec.js';
 
 /** A registrable bundle of effects + transitions. `baseUrl` is the pack's CDN root. */
@@ -191,7 +193,14 @@ const line = (id: string, name: string, group: string | undefined, description: 
  * const prompt = `Choose from these transitions:\n${describeCatalog().transitions}`;
  * ```
  */
-export function describeCatalog(): { filters: string; effects: string; transitions: string; full: string } {
+export function describeCatalog(): {
+  filters: string;
+  effects: string;
+  transitions: string;
+  templates: string;
+  themes: string;
+  full: string;
+} {
   const filters = listFilters()
     .map((e) => line(e.id, e.name, e.category, e.description))
     .join('\n');
@@ -201,6 +210,17 @@ export function describeCatalog(): { filters: string; effects: string; transitio
   const transitions = listTransitions()
     .map((t) => line(t.id, t.name, t.family, t.description))
     .join('\n');
-  const full = `## Filters (color grades — one per clip)\n${filters}\n\n## Effects (stackable FX layers)\n${effects}\n\n## Transitions (between adjacent clips)\n${transitions}`;
-  return { filters, effects, transitions, full };
+  const templates = listTemplates()
+    .map((t) => line(t.id, t.name, t.category ?? t.aspect, t.description))
+    .join('\n');
+  const themes = listThemes()
+    .map((t) => line(t.id, t.name, undefined, t.description))
+    .join('\n');
+  const full =
+    `## Filters (color grades — one per clip)\n${filters}\n\n` +
+    `## Effects (stackable FX layers)\n${effects}\n\n` +
+    `## Transitions (between adjacent clips)\n${transitions}\n\n` +
+    `## Templates (one-shot scene layouts — fill the slots after)\n${templates}\n\n` +
+    `## Themes (palette + type — pass the id as \`theme\`)\n${themes}`;
+  return { filters, effects, transitions, templates, themes, full };
 }

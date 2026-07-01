@@ -32,9 +32,11 @@ import {
   withAudioPatch,
   withAudioRemoved,
   withClipAppended,
+  withSceneAppended,
   withAudioItemAppended,
   withOutputPatch,
 } from './edit.js';
+import { buildScene } from './templates.js';
 
 /** Patchable clip fields (subset of a {@link VisualClip} an editor mutates directly). */
 export interface ClipPatch {
@@ -65,6 +67,10 @@ export type EditorCommand =
   | { type: 'updateAudioItem'; audioId: string; patch: Partial<AudioItem>; label?: string }
   | { type: 'removeAudioItem'; audioId: string; label?: string }
   | { type: 'addClip'; clip: VisualClip; label?: string }
+  /** Instantiate a registered layout TEMPLATE as a themed scene (a layered lane on top).
+   *  `content` is the template's typed input (minus at/duration/theme); slots are filled
+   *  after. Unknown template ⇒ no-op. */
+  | { type: 'applyTemplate'; template: string; content?: Record<string, unknown>; atSec?: number; durationSec?: number; theme?: string; label?: string }
   | { type: 'addAudioItem'; item: AudioItem; label?: string }
   | { type: 'setOutput'; patch: Partial<VixelSpec['output']>; label?: string }
   /** Cut time ranges (seconds) out of lane `trackId` and close the gaps; link-aware. */
@@ -121,6 +127,17 @@ export function applyCommand(spec: VixelSpec, cmd: EditorCommand): VixelSpec {
       }
       case 'addClip':
         return withClipAppended(spec, cmd.clip);
+      case 'applyTemplate':
+        return withSceneAppended(
+          spec,
+          buildScene({
+            template: cmd.template,
+            at: Math.max(0, cmd.atSec ?? 0),
+            duration: Math.max(0.05, cmd.durationSec ?? 5),
+            theme: cmd.theme,
+            content: cmd.content,
+          }),
+        );
       case 'addAudioItem':
         return withAudioItemAppended(spec, cmd.item);
       case 'setOutput':
@@ -163,6 +180,8 @@ export function commandLabel(cmd: EditorCommand): string {
       return 'Delete audio';
     case 'addClip':
       return 'Add clip';
+    case 'applyTemplate':
+      return 'Apply template';
     case 'addAudioItem':
       return 'Add audio';
     case 'setOutput':

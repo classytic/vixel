@@ -389,6 +389,19 @@ export function withClipAppended(spec: VixelSpec, clip: VisualClip): VixelSpec {
   return withTrack(spec, idx, reflowSequential({ ...track, clips: [...track.clips, clip] }));
 }
 
+/**
+ * Append a themed SCENE — a template's already-built clips — as a NEW non-sequential
+ * visual lane on TOP (track order is stacking order). Unlike {@link withClipAppended},
+ * the clips keep their own `at`/`transform`/`slot`: a LAYERED composition (background +
+ * frames + fillable slots), not a butted-in sequential clip. Empty list ⇒ unchanged
+ * (same reference), so an unknown template is a clean no-op. Ids are minted by the caller.
+ */
+export function withSceneAppended(spec: VixelSpec, clips: VisualClip[]): VixelSpec {
+  if (!clips.length) return spec;
+  const lane: VisualTrack = { type: 'visual', clips };
+  return { ...spec, tracks: [...spec.tracks, lane] };
+}
+
 /** Append an audio item to the first audio track (creating one if absent). */
 export function withAudioItemAppended(spec: VixelSpec, item: AudioItem): VixelSpec {
   const idx = spec.tracks.findIndex(isAudioTrack);
