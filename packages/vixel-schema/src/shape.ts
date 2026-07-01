@@ -24,14 +24,78 @@
  */
 export type ShapeKind = 'rect' | 'roundedRect' | 'ellipse' | 'line' | 'triangle' | 'polygon' | 'star' | 'path';
 
-/** Fill of a shape — a flat color or a linear gradient. */
+/** One color stop along a gradient, `offset` 0..1. */
+export interface GradientStop {
+  offset: number;
+  color: string;
+}
+
+/**
+ * A gradient fill — LINEAR (default) or RADIAL, as a two-stop shorthand (`from`/`to`) OR
+ * a multi-stop list (`stops`). ONE model both renderers resolve through
+ * {@link resolveGradient}, so preview (Pixi `FillGradient`) and export (SVG
+ * linear/radialGradient) draw the same fill. Back-compatible: `{ from, to, angle }` still
+ * works unchanged.
+ */
+export interface ShapeGradient {
+  /** `linear` (default) or `radial`. */
+  type?: 'linear' | 'radial';
+  /** Linear direction in degrees (0 = left→right). Ignored for radial. */
+  angle?: number;
+  /** Radial center as 0..1 fractions of the frame (default 0.5, 0.5). Radial only. */
+  cx?: number;
+  cy?: number;
+  /** Radial outer radius as a 0..1 fraction of the frame (default 0.5). Radial only. */
+  radius?: number;
+  /** Multi-stop color list (≥ 2, any order) — wins over `from`/`to` when present. */
+  stops?: GradientStop[];
+  /** Two-stop shorthand → offsets 0 and 1. */
+  from?: string;
+  to?: string;
+}
+
+/** Fill of a shape — a flat color or a gradient (linear/radial, multi-stop). */
 export interface ShapeFill {
   /** Flat fill `#RRGGBB`. */
   color?: string;
   /** Fill opacity 0..1 (default 1). Lets a `#RRGGBB` color be translucent (frosted glass). */
   opacity?: number;
-  /** Linear gradient (overrides `color` when present). `angle` in degrees, 0 = left→right. */
-  gradient?: { from: string; to: string; angle?: number };
+  /** Gradient fill (overrides `color` when present). See {@link ShapeGradient}. */
+  gradient?: ShapeGradient;
+}
+
+/** A {@link ShapeGradient} normalized to concrete geometry + a sorted stop list. */
+export interface ResolvedGradient {
+  type: 'linear' | 'radial';
+  angle: number;
+  cx: number;
+  cy: number;
+  radius: number;
+  stops: GradientStop[];
+}
+
+/**
+ * Normalize a {@link ShapeGradient} to a sorted stop list + geometry — the ONE source of
+ * truth both renderers consume (Pixi `FillGradient` + the SVG `linearGradient`/
+ * `radialGradient` raster), so multi-stop and radial fills stay preview == export. A
+ * two-stop `from`/`to` becomes offsets 0 and 1; explicit `stops` win. Pure.
+ */
+export function resolveGradient(g: ShapeGradient): ResolvedGradient {
+  const stops =
+    g.stops && g.stops.length >= 2
+      ? [...g.stops].sort((a, b) => a.offset - b.offset)
+      : [
+          { offset: 0, color: g.from ?? '#000000' },
+          { offset: 1, color: g.to ?? '#000000' },
+        ];
+  return {
+    type: g.type ?? 'linear',
+    angle: g.angle ?? 0,
+    cx: g.cx ?? 0.5,
+    cy: g.cy ?? 0.5,
+    radius: g.radius ?? 0.5,
+    stops,
+  };
 }
 
 /** Outline of a shape. */

@@ -1,5 +1,17 @@
 # @classytic/vixel-schema
 
+## 0.5.3
+
+Additive (backward-compatible) — richer gradient model.
+
+### Added / Changed
+- **Standardized gradient model**: `ShapeFill.gradient` is now a `ShapeGradient` supporting
+  **linear OR radial** (`type`) and **multi-stop** (`stops: {offset,color}[]`) alongside the
+  existing `{ from, to, angle }` shorthand (unchanged, still valid). New `resolveGradient()`
+  is the ONE resolver both renderers consume (Pixi `FillGradient` + SVG linear/radialGradient),
+  so multi-stop + radial fills stay preview == export. Enables richer gradients + mesh looks
+  (layered radial fills) as pure data.
+
 ## 0.5.2
 
 Additive (backward-compatible) — new command only.
